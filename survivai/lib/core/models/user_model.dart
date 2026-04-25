@@ -26,6 +26,53 @@ class UserModel {
     required this.hasActiveLoan,
     required this.monthlyIncome,
   });
+
+  factory UserModel.fromApi(Map<String, dynamic> json) {
+    return UserModel(
+      id: json['user_id'] as String,
+      name: (json['name'] as String?) ?? 'Siti Nurhaliza',
+      walletBalance: (json['wallet_balance'] as num).toDouble(),
+      survivalDays: json['survival_days'] as int,
+      dailyBurnRate: (json['daily_burn_rate'] as num).toDouble(),
+      trend: SurvivalTrend.values.byName(json['trend_7d'] as String),
+      colorBand: SurvivalBand.values.byName(json['color_band'] as String),
+      emergencyModeActive: (json['emergency_mode'] as bool?) ?? false,
+      topDiscretionaryCategory: json['top_discretionary_category'] as String,
+      topDiscretionaryAmount: (json['top_discretionary_amount_7d'] as num).toDouble(),
+      hasActiveLoan: (json['has_active_loan'] as bool?) ?? false,
+      monthlyIncome: (json['monthly_income'] as num?)?.toDouble() ?? 1800.0,
+    );
+  }
+
+  UserModel copyWith({
+    String? id,
+    String? name,
+    double? walletBalance,
+    int? survivalDays,
+    double? dailyBurnRate,
+    SurvivalTrend? trend,
+    SurvivalBand? colorBand,
+    bool? emergencyModeActive,
+    String? topDiscretionaryCategory,
+    double? topDiscretionaryAmount,
+    bool? hasActiveLoan,
+    double? monthlyIncome,
+  }) {
+    return UserModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      walletBalance: walletBalance ?? this.walletBalance,
+      survivalDays: survivalDays ?? this.survivalDays,
+      dailyBurnRate: dailyBurnRate ?? this.dailyBurnRate,
+      trend: trend ?? this.trend,
+      colorBand: colorBand ?? this.colorBand,
+      emergencyModeActive: emergencyModeActive ?? this.emergencyModeActive,
+      topDiscretionaryCategory: topDiscretionaryCategory ?? this.topDiscretionaryCategory,
+      topDiscretionaryAmount: topDiscretionaryAmount ?? this.topDiscretionaryAmount,
+      hasActiveLoan: hasActiveLoan ?? this.hasActiveLoan,
+      monthlyIncome: monthlyIncome ?? this.monthlyIncome,
+    );
+  }
 }
 
 enum SurvivalTrend { improving, stable, declining }
