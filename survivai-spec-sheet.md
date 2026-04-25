@@ -1,5 +1,5 @@
 # SurvivAI — Technical Spec Sheet
-**Version**: 2.0 | **Date**: 25 April 2026 | **Hackathon**: TNGD FinHack 2026
+**Version**: 2.1 | **Date**: 25 April 2026 | **Hackathon**: TNGD FinHack 2026
 **Track**: Financial Inclusion | **Team**: TBD
 
 ---
@@ -107,34 +107,50 @@ The architecture follows a strict **one cloud = one concern domain** principle. 
 │  │  Lambda — core      │  │  Lambda — credit engine      │   │
 │  │  Survival score     │  │  CTOS call · feature eng.    │   │
 │  │  Emergency mode     │  │  Loan decision · MCC disburse│   │
-│  │  Nudge orchestration│  └──────────────────────────────┘   │
+│  │  Nudge orchestration│  └──────────┬───────────────────┘   │
+│  └──────────┬──────────┘             │ (sync — user waits)   │
+│             │ (async via SQS)        │                       │
+│  ┌──────────▼──────────┐  ┌──────────▼──────────────────┐   │
+│  │  SQS                │  │  Bedrock — Claude Haiku       │   │
+│  │  Inference queue    │  │  LLM nudge generation only    │   │
+│  │  Async PAI-EAS      │  │  (managed API, not ML hosting)│   │
+│  │  dispatch           │  └──────────────────────────────┘   │
 │  └──────────┬──────────┘                                     │
 │             │                                                 │
 │  ┌──────────▼──────────┐  ┌──────────────────────────────┐   │
-│  │  DynamoDB           │  │  Bedrock — Claude Haiku       │   │
-│  │  users · txns       │  │  LLM nudge generation only    │   │
-│  │  loans · MCC list   │  │  (managed API, not ML hosting)│   │
-│  └─────────────────────┘  └──────────────────────────────┘   │
+│  │  DynamoDB           │  │  Secrets Manager             │   │
+│  │  users · txns       │  │  PAI-EAS token · CTOS key    │   │
+│  │  loans · MCC list   │  │  Rotation-ready              │   │
+│  │  classifier_flag    │  └──────────────────────────────┘   │
+│  └─────────────────────┘                                     │
 │                                                              │
-│  → Inference requests cross to Alibaba Cloud PAI-EAS        │
+│  → Feature vectors cross to Alibaba Cloud PAI-EAS           │
+│    via EAS Dedicated Gateway (IP-whitelisted)               │
 └──────────────────────────────────────────────────────────────┘
-                          │ PAI-EAS REST API
-                          │ (inference requests only — no PII)
-┌─────────────────────────▼────────────────────────────────────┐
+          │ Feature vectors only — no PII crosses this boundary
+          │ EAS Dedicated Gateway endpoint (stable, versioned)
+┌─────────▼────────────────────────────────────────────────────┐
 │          Alibaba Cloud — ap-southeast-1 (Singapore)          │
 │          All AI/ML serving · compliance audit trail          │
 │                                                              │
-│  ┌───────────────────────┐  ┌───────────────────────────┐   │
-│  │  PAI-EAS              │  │  PAI-EAS                  │   │
-│  │  Spending classifier  │  │  Credit scorer (XGBoost)  │   │
-│  │  MY merchant tagging  │  │  CTOS + TNG feature fusion│   │
-│  └───────────┬───────────┘  └──────────────┬────────────┘   │
-│              │                              │                 │
-│  ┌───────────▼──────────────────────────────▼────────────┐   │
-│  │  SLS — Audit Trail                                    │   │
-│  │  Co-located with AI inference (most intensive layer)  │   │
-│  │  Credit decisions · inference logs · PDPA compliance  │   │
-│  └───────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────┐     │
+│  │  EAS Dedicated Gateway                              │     │
+│  │  Stable endpoint · IP whitelist · canary releases   │     │
+│  └──────────┬──────────────────────────┬──────────────┘     │
+│             │                          │                     │
+│  ┌──────────▼──────────┐  ┌────────────▼────────────────┐   │
+│  │  PAI-EAS            │  │  PAI-EAS                    │   │
+│  │  Spending classifier│  │  Credit scorer (XGBoost)    │   │
+│  │  MY merchant tagging│  │  CTOS + TNG feature fusion  │   │
+│  └──────────┬──────────┘  └────────────┬────────────────┘   │
+│             │                          │                     │
+│  ┌──────────▼──────────────────────────▼────────────────┐   │
+│  │  SLS — Unified Audit Trail                           │   │
+│  │  Ingests: PAI-EAS inference logs (co-located)        │   │
+│  │           Lambda Credit logs (via LoongCollector)    │   │
+│  │  Full credit decision chain in one immutable store   │   │
+│  │  PDPA-compliant · anonymised IDs · no NRIC/name     │   │
+│  └──────────────────────────────────────────────────────┘   │
 │                                                              │
 │  ┌──────────────────────┐  ┌────────────────────────────┐   │
 │  │  OpenSearch          │  │  OSS                       │   │
@@ -148,36 +164,67 @@ The architecture follows a strict **one cloud = one concern domain** principle. 
 | Decision | Rationale |
 |---|---|
 | All ML serving on Alibaba Cloud PAI-EAS | Consolidates inference in one place. Malaysian merchant data fine-tuning is native to Alibaba Cloud's SEA infrastructure. Avoids scattered AI across two clouds. |
-| Audit trail on Alibaba Cloud SLS (not AWS) | SLS is co-located with PAI-EAS — the most compute-intensive layer. Credit scoring inference + audit log belong together. Cross-cloud audit logging adds latency and cost for no gain. |
+| EAS Dedicated Gateway for cross-cloud calls | Provides a stable, versioned endpoint that does not change on PAI-EAS redeployment. Supports IP whitelisting (only Lambda NAT gateway IP permitted), canary releases for model rollouts, and built-in load balancing. Replaces direct public PAI-EAS URL calls. |
+| Audit trail on Alibaba Cloud SLS (extended) | SLS is co-located with PAI-EAS — the most compute-intensive layer. Extended to also ingest Lambda Credit structured logs via LoongCollector agent. Full decision chain (AWS invocation → Alibaba inference → decision) captured in one immutable SLS Logstore for BNM compliance. |
 | AWS Bedrock kept on AWS | Bedrock is a managed LLM API call, not model hosting. It sits entirely in the AWS request chain and never touches the ML serving layer. This is the correct categorisation. |
+| SQS queue for spending classifier (async) | Decouples Lambda Core response time from PAI-EAS latency on Path A. Lambda writes merchant/amount to SQS; a consumer Lambda calls PAI-EAS and writes categorised results back to DynamoDB. Survival Score reads pre-classified data — user-facing latency no longer depends on model inference speed. Credit scoring (Path B) remains synchronous: the user is waiting 30 seconds for a loan decision. |
+| AWS Secrets Manager for PAI-EAS token | PAI-EAS bearer token and CTOS API key stored in Secrets Manager with automatic rotation policy. Never in Lambda environment variables or source code. |
 | AWS SageMaker removed | Replaced by PAI-EAS. Running two separate ML hosting platforms (SageMaker + PAI) for the same problem was the original anti-pattern. One platform, one place. |
 | Flutter replaces React Native / TNG MiniApp SDK | Flutter supports iOS, Android, and web from a single Dart codebase. TNG MiniApp can be packaged as a Flutter WebView embed. Cross-platform without code duplication. |
-| No PII crosses cloud boundary | Lambda sends only feature vectors (numbers) to PAI-EAS, never raw transaction strings, NRIC, or names. PDPA data residency maintained. |
+| No PII crosses cloud boundary | Lambda sends only feature vectors (numbers) to PAI-EAS, never raw transaction strings, NRIC, or names. Raw merchant names sent to the spending classifier carry no user identifiers. PDPA data residency maintained. |
+| `classifier_flag` in DynamoDB | Boolean flag set by a CloudWatch alarm when PAI-EAS P99 latency exceeds 500ms or error rate exceeds 5%. Lambda Core reads this flag and switches to the rule-based fallback classifier automatically. Acts as a circuit breaker without requiring Lambda redeployment. |
 
-### 4.3 Data Flow — Path A: Survival Score
+### 4.3 Data Flow — Path A: Survival Score (Async Classification)
 
 ```
 Flutter → API Gateway → Lambda Core
-       → [fetch 90d transactions from DynamoDB]
-       → [send merchant name + amount to PAI-EAS spending classifier]
-       ← [receive Essential / Discretionary tags]
+       → [fetch 90d pre-classified transactions from DynamoDB]
+         (categories already written by consumer Lambda — no inline PAI-EAS call)
        → [compute: daily_burn = avg(essential_spend) / 30]
        → [compute: survival_days = wallet_balance / daily_burn]
        → [Bedrock: generate personalised nudge from top discretionary category]
        → API response → Flutter renders Survival Score UI
+
+Background (SQS consumer):
+       New TNG transaction arrives → Lambda Core writes to SQS inference queue
+       → Consumer Lambda reads queue
+       → [check DynamoDB classifier_flag — PAI-EAS healthy?]
+         YES → [send merchant name + amount to PAI-EAS via EAS Dedicated Gateway]
+               ← [receive Essential / Discretionary tags]
+         NO  → [rule-based fallback: keyword list classification]
+       → [DynamoDB: write category + confidence back to transaction record]
 ```
 
-### 4.4 Data Flow — Path B: Emergency Credit Lifeline
+### 4.4 Data Flow — Path B: Emergency Credit Lifeline (Synchronous)
 
 ```
 Flutter (user consents) → API Gateway → Lambda Credit
+       → [Secrets Manager: fetch CTOS API key]
        → [CTOS API: fetch thin-file signal]
        → [DynamoDB: aggregate 90d TNG transaction features]
-       → [PAI-EAS credit scorer: XGBoost inference on feature vector]
+       → [PAI-EAS credit scorer via EAS Dedicated Gateway: XGBoost inference on feature vector]
        ← [decision: APPROVE RM150 / DECLINE, top 3 SHAP factors]
        → [SLS: log decision + anonymised feature vector — PDPA compliant]
+         (LoongCollector agent on Lambda ships structured log to SLS Logstore)
        → [DynamoDB: write loan record, MCC-locked sub-balance]
        → API response → Flutter shows approval + restricted card balance
+```
+
+### 4.5 Circuit Breaker — PAI-EAS Fallback
+
+```
+CloudWatch alarm:
+  Metric: PAI-EAS health check Lambda (runs every 60s)
+  Condition: P99 latency > 500ms OR error rate > 5% for 2 consecutive periods
+  Action: DynamoDB UpdateItem → { classifier_flag: "FALLBACK" }
+
+Recovery:
+  Health check Lambda detects PAI-EAS healthy for 3 consecutive periods
+  Action: DynamoDB UpdateItem → { classifier_flag: "PAI_EAS" }
+
+Lambda Core reads classifier_flag on every SQS message:
+  "PAI_EAS"  → call EAS Dedicated Gateway endpoint
+  "FALLBACK" → run keyword-based rule classifier (hardcoded merchant list)
 ```
 
 ---
@@ -386,81 +433,174 @@ For the hackathon MVP, MCC enforcement is **simulated at the API layer** — the
 | **API Gateway** | AWS API Gateway | Serverless, scales to TNG's 24M user base. JWT auth + rate limiting at edge. |
 | **Core Lambda** | AWS Lambda (Node.js 20) | Survival Score, Emergency Mode, nudge orchestration |
 | **Credit Lambda** | AWS Lambda (Python 3.11) | Credit feature engineering, CTOS API call, PAI-EAS invoke, MCC disbursal |
+| **Inference Queue** | AWS SQS | Decouples spending classifier invocation from Lambda Core response time. Consumer Lambda reads queue and writes PAI-EAS results back to DynamoDB asynchronously. Credit scoring path remains synchronous. |
+| **Secrets Management** | AWS Secrets Manager | PAI-EAS bearer token and CTOS API key stored with automatic rotation. Never in Lambda env vars or source code. |
 | **LLM Nudges** | AWS Bedrock — Claude Haiku | Managed LLM API call — stays on AWS. Not model hosting. Malay-language capable. |
-| **Primary DB** | AWS DynamoDB | Low-latency key-value, serverless, scales instantly |
+| **Primary DB** | AWS DynamoDB | Low-latency key-value, serverless, scales instantly. Includes `classifier_flag` item for circuit breaker state. |
 | **Spending Classifier** | Alibaba Cloud PAI-EAS | All ML serving consolidated here. MY merchant name fine-tuning (kedai runcit, pasar malam, mamak). |
 | **Credit Scorer** | Alibaba Cloud PAI-EAS | XGBoost model hosted on PAI-EAS. Same platform as classifier — one ML serving layer, not two. |
-| **Audit Trail** | Alibaba Cloud SLS | Co-located with PAI-EAS (most compute-intensive layer). Credit decisions + inference logs. PDPA-compliant. |
+| **ML Serving Gateway** | Alibaba Cloud EAS Dedicated Gateway | Stable versioned endpoint for all cross-cloud PAI-EAS calls. IP whitelisting (Lambda NAT gateway only). Canary release support for model rollouts. |
+| **Unified Audit Trail** | Alibaba Cloud SLS | Co-located with PAI-EAS. Extended to ingest Lambda Credit structured logs via LoongCollector agent. Full decision chain (AWS invocation → Alibaba inference → decision outcome) in one immutable Logstore. PDPA-compliant. |
 | **Benefits Search** | Alibaba Cloud OpenSearch | Full-text search on B40 government benefit eligibility rules |
 | **Model Artefacts** | Alibaba Cloud OSS | PAI model files + training data. OSS → PAI pipeline is native Alibaba Cloud workflow. |
 | **External API** | CTOS B2B Data API | Thin-file credit signals for B40 users |
 
 > **Removed from v1.0**: AWS SageMaker. Running SageMaker (AWS) alongside PAI-EAS (Alibaba) for the same ML serving function violated the single-domain principle. All model serving now lives on Alibaba Cloud.
 
+> **Added in v2.1**: AWS SQS (async classifier dispatch), AWS Secrets Manager (credential security), Alibaba Cloud EAS Dedicated Gateway (stable cross-cloud endpoint), SLS LoongCollector ingestion of Lambda logs (unified audit trail).
+
 ---
 
 ## 10. Cloud Architecture — AWS
 
-### Domain: Compute, Data, Auth, LLM API
+### Domain: Compute, Data, Auth, LLM API, Async Dispatch, Secret Storage
 
 AWS is responsible for everything user-facing and all stateful data. It does not host any ML models.
 
 | Service | Role | Why Non-Negotiable |
 |---|---|---|
 | **API Gateway** | Single entry point — rate limiting, JWT auth, routing | Load-bearing edge layer |
-| **Lambda (Core)** | Survival Score, Emergency Mode, nudge orchestration, PAI-EAS calls | Core business logic |
-| **Lambda (Credit)** | CTOS API, feature engineering, PAI-EAS credit invoke, MCC disbursal | Core credit decisioning |
+| **Lambda (Core)** | Survival Score, Emergency Mode, nudge orchestration, SQS dispatch | Core business logic |
+| **Lambda (Credit)** | CTOS API, feature engineering, PAI-EAS credit invoke via EAS Gateway, MCC disbursal | Core credit decisioning |
+| **Lambda (Classifier Consumer)** | Reads SQS inference queue, calls PAI-EAS spending classifier, writes result to DynamoDB | Async classification worker |
+| **Lambda (Health Check)** | Pings PAI-EAS every 60s, updates `classifier_flag` in DynamoDB, triggers CloudWatch alarm | Circuit breaker controller |
+| **SQS** | Inference queue — decouples spending classifier from user-facing response time | Async dispatch buffer |
+| **Secrets Manager** | PAI-EAS bearer token, CTOS API key — automatic rotation enabled | Credential security |
 | **Bedrock (Claude Haiku)** | Daily nudge generation | Managed LLM API — lives naturally on AWS. Not ML model hosting. |
-| **DynamoDB** | All persistent state: users, transactions, loans, MCC allowlist | Primary database |
+| **DynamoDB** | All persistent state: users, transactions, loans, MCC allowlist, `classifier_flag` | Primary database |
+| **CloudWatch** | PAI-EAS health check alarm — triggers on P99 > 500ms or error rate > 5% | Observability + circuit breaker trigger |
 
 ### What AWS Does Not Do
 - **No ML model hosting** — that is Alibaba Cloud's domain
-- **No audit trail** — SLS is co-located with PAI-EAS on Alibaba Cloud
+- **No primary audit trail** — SLS on Alibaba Cloud is the immutable compliance record. CloudWatch logs are for operational debugging only.
 
-### IAM Roles
+### IAM Roles (Scoped — Least Privilege)
 
+```json
+LambdaCoreRole:
+{
+  "Effect": "Allow",
+  "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Query"],
+  "Resource": [
+    "arn:aws:dynamodb:ap-southeast-1:*:table/users",
+    "arn:aws:dynamodb:ap-southeast-1:*:table/transactions",
+    "arn:aws:dynamodb:ap-southeast-1:*:table/config"
+  ]
+},
+{
+  "Effect": "Allow",
+  "Action": ["bedrock:InvokeModel"],
+  "Resource": "arn:aws:bedrock:ap-southeast-1::foundation-model/anthropic.claude-haiku*"
+},
+{
+  "Effect": "Allow",
+  "Action": ["sqs:SendMessage"],
+  "Resource": "arn:aws:sqs:ap-southeast-1:*:survivai-inference-queue"
+}
+
+LambdaCreditRole:
+{
+  "Effect": "Allow",
+  "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Query"],
+  "Resource": [
+    "arn:aws:dynamodb:ap-southeast-1:*:table/users",
+    "arn:aws:dynamodb:ap-southeast-1:*:table/transactions",
+    "arn:aws:dynamodb:ap-southeast-1:*:table/loans"
+  ]
+},
+{
+  "Effect": "Allow",
+  "Action": ["secretsmanager:GetSecretValue"],
+  "Resource": [
+    "arn:aws:secretsmanager:ap-southeast-1:*:secret:survivai/pai-eas-token*",
+    "arn:aws:secretsmanager:ap-southeast-1:*:secret:survivai/ctos-api-key*"
+  ]
+}
+
+LambdaClassifierConsumerRole:
+{
+  "Effect": "Allow",
+  "Action": ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"],
+  "Resource": "arn:aws:sqs:ap-southeast-1:*:survivai-inference-queue"
+},
+{
+  "Effect": "Allow",
+  "Action": ["dynamodb:UpdateItem"],
+  "Resource": "arn:aws:dynamodb:ap-southeast-1:*:table/transactions"
+},
+{
+  "Effect": "Allow",
+  "Action": ["secretsmanager:GetSecretValue"],
+  "Resource": "arn:aws:secretsmanager:ap-southeast-1:*:secret:survivai/pai-eas-token*"
+}
 ```
-LambdaCoreRole:    AmazonDynamoDBFullAccess, AmazonBedrockFullAccess
-LambdaCreditRole:  AmazonDynamoDBFullAccess
-```
+
+> **Removed in v2.1**: `AmazonDynamoDBFullAccess` and `AmazonBedrockFullAccess` wildcard policies. Replaced with scoped resource-level policies per Lambda function. This satisfies BNM fair lending compliance expectations around system access control.
 
 ---
 
 ## 11. Cloud Architecture — Alibaba Cloud
 
-### Domain: All AI/ML Serving + Compliance Audit Trail
+### Domain: All AI/ML Serving + Unified Compliance Audit Trail
 
-Alibaba Cloud owns the entire ML serving layer. Audit trail lives here because SLS is co-located with PAI-EAS — the most compute-intensive service. Logging at the point of compute is the correct pattern.
+Alibaba Cloud owns the entire ML serving layer. The EAS Dedicated Gateway is the single entry point for all cross-cloud inference calls. SLS has been extended to serve as the unified audit trail for the full credit decision chain — not just the Alibaba-side inference logs, but also the Lambda Credit invocation on AWS (shipped via LoongCollector). This gives compliance auditors one immutable store covering both clouds.
 
 | Service | Role | Why This Cloud |
 |---|---|---|
+| **EAS Dedicated Gateway** | Single stable endpoint for all Lambda → PAI-EAS calls. IP-whitelisted to Lambda NAT gateway. Canary release support for model version rollouts. | Prevents raw PAI-EAS URLs from being exposed or changing on redeployment. Standard pattern for cross-cloud EAS access per Alibaba Cloud documentation. |
 | **PAI-EAS (Spending Classifier)** | Serve Malaysian merchant spending tagger in real time | SEA-native infrastructure; fine-tuned on MY merchant names. AWS has no equivalent MY-tuned offering. |
 | **PAI-EAS (Credit Scorer)** | Serve XGBoost credit model — CTOS + TNG feature fusion | Consolidated on same platform as classifier. One ML serving layer, not two. |
-| **SLS (Log Service)** | Immutable audit trail for all AI inference and credit decisions | Co-located with PAI-EAS. Zero cross-cloud hop for logs. PDPA-compliant anonymised records. |
+| **SLS (Log Service)** | Unified audit trail: PAI-EAS inference logs (co-located) + Lambda Credit structured logs (via LoongCollector). Full decision chain from AWS invocation to Alibaba inference outcome in one immutable Logstore. | SLS natively supports multi-cloud log ingestion. LoongCollector agent on Lambda ships structured JSON logs to SLS endpoint over HTTPS. Zero additional infrastructure required. PDPA-compliant anonymised records. |
 | **OpenSearch** | B40 government benefit eligibility search | Full-text matching on benefit rules — not a DynamoDB use case. |
-| **OSS** | Model artefacts and training datasets | Native PAI-EAS model registry. OSS → PAI pipeline requires no external tooling. |
+| **OSS** | Model artefacts and training datasets | Native PAI-EAS model registry. OSS → PAI pipeline requires no external tooling. Model deployment sequence: export locally → upload to OSS → mount OSS path in EAS service config → EAS loads on startup. |
+
+### EAS Dedicated Gateway Configuration
+
+```
+Gateway type:    Fully-managed Dedicated Gateway
+Network access:  Public + internal (same VPC as PAI-EAS services)
+IP whitelist:    <Lambda NAT Gateway EIP>  # only source permitted
+Custom domain:   survivai-inference.eas.example.com  # stable across redeployments
+Canary policy:   10% traffic to new model version → monitor P99 → cut over at 0% error rate
+```
 
 ### PAI-EAS Endpoint Contracts
 
+All calls route through the EAS Dedicated Gateway, not directly to the PAI-EAS service URL.
+
 **Spending Classifier**
 ```
-POST https://<endpoint>.eas.aliyuncs.com/api/predict/spending_classifier
-Headers: { "Authorization": "Bearer <token>" }
+POST https://survivai-inference.eas.example.com/api/predict/spending_classifier
+Headers: { "Authorization": "Bearer <token-from-secrets-manager>" }
 Body:   { "merchant_name": "Giant Hypermarket Shah Alam", "amount": 45.80, "mcc": "5411" }
 Return: { "category": "Essential", "confidence": 0.97, "subcategory": "Grocery" }
 ```
 
 **Credit Scorer**
 ```
-POST https://<endpoint>.eas.aliyuncs.com/api/predict/credit_scorer
-Headers: { "Authorization": "Bearer <token>" }
+POST https://survivai-inference.eas.example.com/api/predict/credit_scorer
+Headers: { "Authorization": "Bearer <token-from-secrets-manager>" }
 Body:   { "ctos_score_band": 3, "topup_frequency_90d": 14, "utility_payment_rate": 0.92,
           "spend_volatility": 0.21, "essential_spend_ratio": 0.64, "survival_score_delta": 2 }
 Return: { "decision": "APPROVE", "loan_amount": 150, "risk_tier": "MEDIUM",
           "shap_factors": ["Regular top-ups (+)", "Utility bills paid (+)", "High Grab spend (-)"] }
 ```
 
-> Note: No PII is sent to Alibaba Cloud. All inputs are numerical feature vectors derived by Lambda. Raw merchant names are sent to the classifier only — no user identifiers travel with them.
+### OSS → PAI-EAS Model Deployment Sequence
+
+```
+1. Train XGBoost model locally → export model.pkl + model.json
+2. Upload to OSS:
+   oss://survivai-models/credit-scorer/v1/model.pkl
+   oss://survivai-models/spending-classifier/v1/model.pkl
+3. PAI console: Create EAS service → Custom deployment
+   → Mount OSS path: oss://survivai-models/credit-scorer/v1/ → /home/model/
+   → EAS service loads model from /home/model/model.pkl at startup
+4. Attach service to EAS Dedicated Gateway
+5. Copy gateway endpoint → store in AWS Secrets Manager as survivai/pai-eas-token
+```
+
+> Note: No PII is sent to Alibaba Cloud. All inputs to both PAI-EAS endpoints are numerical feature vectors derived by Lambda. Raw merchant names sent to the spending classifier carry no user identifiers — no `user_id`, no `ic_hash`, no name.
 
 ---
 
