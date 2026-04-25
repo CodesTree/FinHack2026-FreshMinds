@@ -501,6 +501,8 @@ For the hackathon MVP, MCC enforcement is **simulated at the API layer** — the
 >
 > **Removed from v2.0**: AWS Bedrock. Nudge generation uses the bilingual template engine inside Lambda Core — no LLM call required for MVP. Bedrock is the Year 2 upgrade path at 100K+ users.
 
+> **Removed from v1.0**: AWS SageMaker. Running SageMaker (AWS) alongside PAI-EAS (Alibaba) for the same ML serving function violated the single-domain principle. All model serving now lives on Alibaba Cloud.
+
 ---
 
 ## 10. Cloud Architecture — AWS
@@ -549,6 +551,7 @@ Alibaba Cloud owns the entire ML serving layer. The EAS Dedicated Gateway is the
 
 ### EAS Dedicated Gateway Configuration
 
+**Spending Classifier**
 ```
 Gateway type:    Fully-managed Dedicated Gateway
 Network access:  Public + internal (same VPC as PAI-EAS services)
@@ -580,6 +583,15 @@ Body:   { "ctos_score_band": 3, "topup_frequency_90d": 14, "utility_payment_rate
 Return: { "decision": "APPROVE", "loan_amount": 150, "risk_tier": "MEDIUM",
           "shap_factors": ["Regular top-ups (+)", "Utility bills paid (+)", "High Grab spend (-)"] }
 ```
+POST https://<endpoint>.eas.aliyuncs.com/api/predict/credit_scorer
+Headers: { "Authorization": "Bearer <token>" }
+Body:   { "ctos_score_band": 3, "topup_frequency_90d": 14, "utility_payment_rate": 0.92,
+          "spend_volatility": 0.21, "essential_spend_ratio": 0.64, "survival_score_delta": 2 }
+Return: { "decision": "APPROVE", "loan_amount": 150, "risk_tier": "MEDIUM",
+          "shap_factors": ["Regular top-ups (+)", "Utility bills paid (+)", "High Grab spend (-)"] }
+```
+
+> Note: No PII is sent to Alibaba Cloud. All inputs are numerical feature vectors derived by Lambda. Raw merchant names are sent to the classifier only — no user identifiers travel with them.
 
 ### OSS → PAI-EAS Model Deployment Sequence
 
