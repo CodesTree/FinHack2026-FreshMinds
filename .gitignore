@@ -1,18 +1,85 @@
-# This .gitignore is appropriate for repositories deployed to GitHub Pages and using
-# a Gemfile as specified at https://github.com/github/pages-gem#conventional
+# Flutter
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+pubspec.lock
+coverage/
 
-# Basic Jekyll gitignores (synchronize to Jekyll.gitignore)
-_site/
-.sass-cache/
-.jekyll-cache/
-.jekyll-metadata
+# Android
+android/.gradle/
+android/.idea/
+android/local.properties
+android/**/GeneratedPluginRegistrant.java
+android/key.properties
 
-# Additional Ruby/bundler ignore for when you run: bundle install
-/vendor
+# iOS
+ios/Flutter/Flutter.podspec
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.release.podspec
+ios/Flutter/GeneratedPluginRegistrant.h
+ios/Flutter/GeneratedPluginRegistrant.m
+ios/Pods/
+ios/Podfile.lock
 
-# Specific ignore for GitHub Pages
-# GitHub Pages will always use its own deployed version of pages-gem
-# This means GitHub Pages will NOT use your Gemfile.lock and therefore it is
-# counterproductive to check this file into the repository.
-# Details at https://github.com/github/pages-gem/issues/768
-Gemfile.lock
+# macOS
+macos/Flutter/Flutter.podspec
+macos/Flutter/Flutter.framework
+macos/Flutter/GeneratedPluginRegistrant.dart
+macos/Pods/
+macos/Podfile.lock
+macos/Flutter/GeneratedPluginRegistrant.swift
+
+# Linux & Windows
+linux/flutter/generated_plugins.cmake
+windows/flutter/generated_plugins.cmake
+
+# Web
+web/flutter_service_worker.js
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.iml
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Secrets & Credentials (CRITICAL)
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+secrets.json
+firebase-key.json
+google-services.json
+
+# Local development
+.venv/
+venv/
+node_modules/
+
+# Misc
+.history/
+.dart_code_metrics/
+.fvm/
+fvm_config.json
+
+# Claude
+.omc
+
