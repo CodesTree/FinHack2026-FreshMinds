@@ -27,8 +27,9 @@ class HomeScreen extends StatelessWidget {
           // Blue header
           SliverAppBar(
             expandedHeight: 280,
-            pinned: true,
-            backgroundColor: AppColors.primary,
+            pinned: false,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
             flexibleSpace: FlexibleSpaceBar(
               background: _HomeHeader(user: user),
             ),
@@ -38,6 +39,11 @@ class HomeScreen extends StatelessWidget {
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 const SizedBox(height: 20),
+                // Auto-triggered emergency banner
+                if (context.watch<AppProvider>().emergencyAutoTriggered) ...[
+                  _EmergencyAutoBanner(),
+                  const SizedBox(height: 16),
+                ],
                 // Today's nudge
                 if (nudges.isNotEmpty) ...[
                   _NudgeCard(nudge: nudges.first),
@@ -150,12 +156,13 @@ class _HomeHeader extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'SELAMAT PAGI',
-                        style: AppTypography.labelCaps.copyWith(color: Colors.white.withOpacity(0.6)),
+                        'GOOD MORNING',
+                        style: AppTypography.labelCaps.copyWith(color: Colors.white.withOpacity(0.7), fontSize: 12, letterSpacing: 2),
                       ),
+                      const SizedBox(height: 8),
                       Text(
                         user.name.split(' ').first,
-                        style: AppTypography.headlineMd.copyWith(color: Colors.white),
+                        style: AppTypography.headlineXl.copyWith(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 56, height: 1.0),
                       ),
                     ],
                   ),
@@ -164,7 +171,7 @@ class _HomeHeader extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
+                          color: Colors.white.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Row(
@@ -173,7 +180,7 @@ class _HomeHeader extends StatelessWidget {
                             const SizedBox(width: 4),
                             Text(
                               'RM ${user.walletBalance.toStringAsFixed(2)}',
-                              style: AppTypography.bodyBold.copyWith(color: Colors.white, fontSize: 13),
+                              style: AppTypography.bodyBold.copyWith(color: Colors.white, fontSize: 15),
                             ),
                           ],
                         ),
@@ -196,19 +203,20 @@ class _HomeHeader extends StatelessWidget {
                         Text(
                           'Survival Score',
                           style: AppTypography.labelCaps.copyWith(
-                            color: Colors.white.withOpacity(0.6),
+                            color: Colors.white.withOpacity(0.7),
+                            fontSize: 11,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 6),
                         Text(
                           'You can survive\n${user.survivalDays} days without income',
-                          style: AppTypography.bodyBase.copyWith(color: Colors.white, height: 1.4),
+                          style: AppTypography.bodyBase.copyWith(color: Colors.white, height: 1.4, fontSize: 16, fontWeight: FontWeight.w600),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 10),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.15),
+                            color: Colors.white.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Row(
@@ -220,21 +228,21 @@ class _HomeHeader extends StatelessWidget {
                                     : Icons.trending_down_rounded,
                                 color: user.trend == SurvivalTrend.improving
                                     ? AppColors.survivalGreen
-                                    : AppColors.survivalRed,
-                                size: 14,
+                                    : AppColors.secondary,
+                                size: 16,
                               ),
                               const SizedBox(width: 4),
                               Text(
                                 _trendText,
-                                style: AppTypography.bodySm.copyWith(color: Colors.white),
+                                style: AppTypography.bodySm.copyWith(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 8),
                         Text(
                           'Burn rate: RM ${user.dailyBurnRate.toStringAsFixed(2)}/day',
-                          style: AppTypography.bodySm.copyWith(color: Colors.white.withOpacity(0.6)),
+                          style: AppTypography.bodySm.copyWith(color: Colors.white.withOpacity(0.7), fontSize: 14),
                         ),
                       ],
                     ),
@@ -249,6 +257,60 @@ class _HomeHeader extends StatelessWidget {
   }
 }
 
+class _EmergencyAutoBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.go('/emergency'),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFB71C1C), Color(0xFFE53935)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.red.withOpacity(0.4),
+              blurRadius: 16,
+              spreadRadius: 2,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 26),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('EMERGENCY MODE ACTIVATED', style: AppTypography.labelCaps.copyWith(color: Colors.white.withOpacity(0.85), fontSize: 10)),
+                  const SizedBox(height: 4),
+                  Text('Your survival score is critically low. Emergency Credit Lifeline is now available.', style: AppTypography.bodySm.copyWith(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right_rounded, color: Colors.white, size: 24),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _NudgeCard extends StatelessWidget {
   final dynamic nudge;
 
@@ -257,35 +319,54 @@ class _NudgeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.secondary.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.secondary.withOpacity(0.4)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: AppColors.secondary.withOpacity(0.3), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.secondary.withOpacity(0.2),
+            blurRadius: 16,
+            spreadRadius: 2,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
-            width: 40,
-            height: 40,
+            width: 56,
+            height: 56,
             decoration: BoxDecoration(
-              color: AppColors.secondary,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppColors.secondary, AppColors.secondary.withOpacity(0.8)],
+              ),
               shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.secondary.withOpacity(0.4),
+                  blurRadius: 12,
+                  spreadRadius: 1,
+                ),
+              ],
             ),
-            child: const Icon(Icons.tips_and_updates_rounded, color: AppColors.primary, size: 20),
+            child: const Icon(Icons.tips_and_updates_rounded, color: Colors.white, size: 28),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('AI NUDGE', style: AppTypography.labelCaps.copyWith(color: AppColors.primary)),
-                const SizedBox(height: 2),
-                Text(nudge.message, style: AppTypography.bodyBase.copyWith(fontSize: 13)),
+                Text('RECOMMENDATIONS', style: AppTypography.labelCaps.copyWith(color: AppColors.primary, fontSize: 12, letterSpacing: 1.2, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 6),
+                Text(nudge.message, style: AppTypography.bodyBase.copyWith(fontSize: 15, color: Colors.black, fontWeight: FontWeight.w700)),
               ],
             ),
           ),
-          const Icon(Icons.chevron_right_rounded, color: AppColors.onSurfaceVariant),
+          const Icon(Icons.chevron_right_rounded, color: AppColors.primary, size: 24),
         ],
       ),
     );
@@ -350,22 +431,34 @@ class _ActionButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [color.withOpacity(0.12), color.withOpacity(0.05)],
+          ),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withOpacity(0.2)),
+          border: Border.all(color: color.withOpacity(0.4), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.15),
+              blurRadius: 10,
+              spreadRadius: 1,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           children: [
-            Icon(icon, color: color, size: 24),
+            Icon(icon, color: color, size: 22),
             const SizedBox(height: 6),
             Text(
               label,
               style: AppTypography.bodySm.copyWith(
                 color: color,
-                fontWeight: FontWeight.w600,
-                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                fontSize: 10,
               ),
               textAlign: TextAlign.center,
             ),
@@ -405,8 +498,8 @@ class _SpendingBreakdown extends StatelessWidget {
               height: 12,
               child: Row(
                 children: [
-                  Expanded(flex: 62, child: Container(color: AppColors.essential)),
-                  Expanded(flex: 38, child: Container(color: AppColors.discretionary)),
+                  Expanded(flex: 50, child: Container(color: AppColors.essential)),
+                  Expanded(flex: 50, child: Container(color: AppColors.discretionary)),
                 ],
               ),
             ),

@@ -23,7 +23,7 @@ class GlassCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final card = Container(
       decoration: BoxDecoration(
-        color: color ?? AppColors.surfaceBright,
+        color: color ?? AppColors.surface,
         borderRadius: BorderRadius.circular(radius),
         boxShadow: hasShadow
             ? [

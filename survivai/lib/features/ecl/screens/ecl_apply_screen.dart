@@ -15,9 +15,10 @@ class EclApplyScreen extends StatelessWidget {
       backgroundColor: AppColors.surface,
       appBar: AppBar(
         backgroundColor: AppColors.surface,
+        elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
+          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.onSurface),
+          onPressed: () => Navigator.of(context).maybePop(),
         ),
         title: Text('Emergency Credit Lifeline', style: AppTypography.headlineSm),
       ),

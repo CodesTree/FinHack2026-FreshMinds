@@ -32,7 +32,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           SliverAppBar(
             expandedHeight: 200,
             pinned: true,
-            backgroundColor: AppColors.primary,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
             automaticallyImplyLeading: false,
             flexibleSpace: FlexibleSpaceBar(
               background: _TransactionHeader(essential: essential, discretionary: discretionary),

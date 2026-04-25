@@ -192,7 +192,8 @@ class _ActiveEmergency extends StatelessWidget {
           SliverAppBar(
             expandedHeight: 300,
             pinned: true,
-            backgroundColor: AppColors.error,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
             flexibleSpace: FlexibleSpaceBar(
               background: _EmergencyHeader(user: user),
             ),

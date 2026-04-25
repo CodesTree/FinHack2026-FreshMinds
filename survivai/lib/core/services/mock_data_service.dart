@@ -59,7 +59,7 @@ class MockDataService {
       ),
       TransactionModel(
         id: 'txn_003',
-        merchantName: 'Kedai Runcit Pak Ali',
+        merchantName: 'Mini Mart Ali',
         amount: 12.50,
         category: TransactionCategory.essential,
         timestamp: now.subtract(const Duration(days: 1)),
@@ -67,7 +67,7 @@ class MockDataService {
       ),
       TransactionModel(
         id: 'txn_004',
-        merchantName: 'Tenaga Nasional Berhad',
+        merchantName: 'Power Company',
         amount: 78.00,
         category: TransactionCategory.essential,
         timestamp: now.subtract(const Duration(days: 1, hours: 4)),
@@ -99,7 +99,7 @@ class MockDataService {
       ),
       TransactionModel(
         id: 'txn_008',
-        merchantName: 'Mamak Restoran Pelita',
+        merchantName: 'Local Restaurant',
         amount: 8.50,
         category: TransactionCategory.essential,
         timestamp: now.subtract(const Duration(days: 3, hours: 6)),
@@ -115,7 +115,7 @@ class MockDataService {
       ),
       TransactionModel(
         id: 'txn_010',
-        merchantName: 'Air Selangor',
+        merchantName: 'Water Utility',
         amount: 35.00,
         category: TransactionCategory.essential,
         timestamp: now.subtract(const Duration(days: 5)),
@@ -159,7 +159,7 @@ class MockDataService {
       NudgeModel(
         id: 'nudge_002',
         message:
-            'Mamak breakfast costs RM5 less than Grab. Swap once = +0.6 days.',
+            'Breakfast at local restaurant costs RM5 less than delivery. Swap once = +0.6 days.',
         timestamp: now.subtract(const Duration(days: 1, hours: 8)),
         acknowledged: true,
         category: 'Food & Drink',
@@ -188,21 +188,21 @@ class MockDataService {
 
   static List<Map<String, dynamic>> getMccAllowedMerchants() {
     return [
-      {'name': 'Giant / Aeon / Mydin', 'icon': '🛒', 'category': 'Groceries'},
-      {'name': 'Petronas / Shell / BHPetrol', 'icon': '⛽', 'category': 'Fuel'},
-      {'name': 'Watson\'s / Guardian / Farmasi', 'icon': '💊', 'category': 'Pharmacy'},
-      {'name': 'Tenaga / Air Selangor', 'icon': '💡', 'category': 'Utilities'},
-      {'name': 'Kedai Runcit / 7-Eleven', 'icon': '🏪', 'category': 'Sundry'},
-      {'name': 'Mamak / Hawker Stalls (≤RM15)', 'icon': '🍜', 'category': 'Essential Food'},
+      {'name': 'Giant / Aeon / Mydin', 'icon': 'shopping_cart', 'category': 'Groceries'},
+      {'name': 'Petronas / Shell / BHPetrol', 'icon': 'local_gas_station', 'category': 'Fuel'},
+      {'name': 'Watson\'s / Guardian / Farmasi', 'icon': 'local_pharmacy', 'category': 'Pharmacy'},
+      {'name': 'Power & Water Companies', 'icon': 'bolt', 'category': 'Utilities'},
+      {'name': 'Mini Marts / Convenience Stores', 'icon': 'store', 'category': 'Convenience Stores'},
+      {'name': 'Mamak / Hawker Stalls (≤RM15)', 'icon': 'restaurant', 'category': 'Essential Food'},
     ];
   }
 
   static List<Map<String, dynamic>> getMccBlockedMerchants() {
     return [
-      {'name': 'Shopee / Lazada', 'icon': '📦', 'category': 'Online Shopping'},
-      {'name': 'Fashion Stores', 'icon': '👗', 'category': 'Clothing'},
-      {'name': 'Electronics Shops', 'icon': '📱', 'category': 'Electronics'},
-      {'name': 'Cinemas', 'icon': '🎬', 'category': 'Entertainment'},
+      {'name': 'Shopee / Lazada', 'icon': 'shopping_bag', 'category': 'Online Shopping'},
+      {'name': 'Fashion Stores', 'icon': 'checkroom', 'category': 'Clothing'},
+      {'name': 'Electronics Shops', 'icon': 'smartphone', 'category': 'Electronics'},
+      {'name': 'Cinemas', 'icon': 'theaters', 'category': 'Entertainment'},
     ];
   }
 

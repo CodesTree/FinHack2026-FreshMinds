@@ -96,7 +96,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SliverAppBar(
             expandedHeight: 220,
             pinned: true,
-            backgroundColor: AppColors.primary,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
             automaticallyImplyLeading: false,
             flexibleSpace: FlexibleSpaceBar(
               background: _ProfileHeader(name: user.name),

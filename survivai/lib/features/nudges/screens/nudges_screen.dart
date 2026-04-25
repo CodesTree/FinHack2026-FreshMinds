@@ -22,7 +22,8 @@ class NudgesScreen extends StatelessWidget {
           SliverAppBar(
             expandedHeight: 180,
             pinned: true,
-            backgroundColor: AppColors.primary,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
             automaticallyImplyLeading: false,
             flexibleSpace: FlexibleSpaceBar(
               background: _NudgeHeader(streak: provider.nudgeStreak),

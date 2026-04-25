@@ -28,6 +28,33 @@ class _MccCardScreenState extends State<MccCardScreen> {
     });
   }
 
+  IconData _getIconData(String iconName) {
+    switch (iconName) {
+      case 'shopping_cart':
+        return Icons.shopping_cart_rounded;
+      case 'local_gas_station':
+        return Icons.local_gas_station_rounded;
+      case 'local_pharmacy':
+        return Icons.local_pharmacy_rounded;
+      case 'bolt':
+        return Icons.bolt_rounded;
+      case 'store':
+        return Icons.store_rounded;
+      case 'restaurant':
+        return Icons.restaurant_rounded;
+      case 'shopping_bag':
+        return Icons.shopping_bag_rounded;
+      case 'checkroom':
+        return Icons.checkroom_rounded;
+      case 'smartphone':
+        return Icons.smartphone_rounded;
+      case 'theaters':
+        return Icons.theaters_rounded;
+      default:
+        return Icons.category_rounded;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
@@ -42,7 +69,8 @@ class _MccCardScreenState extends State<MccCardScreen> {
           SliverAppBar(
             expandedHeight: 260,
             pinned: true,
-            backgroundColor: AppColors.primary,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
             flexibleSpace: FlexibleSpaceBar(
               background: _CardHeader(loan: loan),
             ),
@@ -75,16 +103,15 @@ class _MccCardScreenState extends State<MccCardScreen> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                               decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.08),
+                                color: const Color(0xFF2E7D32),
                                 borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: Colors.black.withOpacity(0.2)),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text(m['icon']!, style: const TextStyle(fontSize: 14)),
+                                  Icon(_getIconData(m['icon']!), color: Colors.white, size: 18),
                                   const SizedBox(width: 6),
-                                  Text(m['category']!, style: AppTypography.bodySm.copyWith(color: Colors.black87, fontWeight: FontWeight.w600)),
+                                  Text(m['category']!, style: AppTypography.bodySm.copyWith(color: Colors.white, fontWeight: FontWeight.w600)),
                                 ],
                               ),
                             ),
@@ -106,16 +133,15 @@ class _MccCardScreenState extends State<MccCardScreen> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                               decoration: BoxDecoration(
-                                color: Colors.grey.withOpacity(0.2),
+                                color: const Color(0xFFB71C1C),
                                 borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: Colors.grey.withOpacity(0.4)),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text(m['icon']!, style: const TextStyle(fontSize: 14)),
+                                  Icon(_getIconData(m['icon']!), color: Colors.white, size: 18),
                                   const SizedBox(width: 6),
-                                  Text(m['category']!, style: AppTypography.bodySm.copyWith(color: Colors.black54, fontWeight: FontWeight.w600)),
+                                  Text(m['category']!, style: AppTypography.bodySm.copyWith(color: Colors.white, fontWeight: FontWeight.w600)),
                                 ],
                               ),
                             ),
@@ -232,16 +258,16 @@ class _CardHeader extends StatelessWidget {
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('MY ECL CARD', style: AppTypography.labelCaps.copyWith(color: Colors.white.withOpacity(0.6))),
+                  Text('MY ECL CARD', style: AppTypography.labelCaps.copyWith(color: Colors.white.withOpacity(0.6), fontSize: 9)),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: loan != null ? AppColors.survivalGreen.withOpacity(0.2) : Colors.white.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),
@@ -250,17 +276,17 @@ class _CardHeader extends StatelessWidget {
                       loan != null ? 'ACTIVE' : 'NO LOAN',
                       style: AppTypography.labelCaps.copyWith(
                         color: loan != null ? AppColors.survivalGreen : Colors.white.withOpacity(0.5),
-                        fontSize: 9,
+                        fontSize: 8,
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               // Card visual
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [Color(0xFF1A3A6B), Color(0xFF0D1F3C)],
@@ -268,7 +294,21 @@ class _CardHeader extends StatelessWidget {
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.white.withOpacity(0.4),
+                      blurRadius: 20,
+                      spreadRadius: 2,
+                      offset: const Offset(0, 0),
+                    ),
+                    BoxShadow(
+                      color: Colors.white.withOpacity(0.2),
+                      blurRadius: 40,
+                      spreadRadius: 4,
+                      offset: const Offset(0, 0),
+                    ),
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -276,26 +316,26 @@ class _CardHeader extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('TNG VISA', style: AppTypography.bodyBold.copyWith(color: Colors.white, fontSize: 13)),
+                        Text('TNG VISA', style: AppTypography.bodyBold.copyWith(color: Colors.white, fontSize: 12)),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: AppColors.secondary.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(6),
                             border: Border.all(color: AppColors.secondary.withOpacity(0.5)),
                           ),
-                          child: Text('ESSENTIAL ONLY', style: AppTypography.labelCaps.copyWith(color: AppColors.secondary, fontSize: 7)),
+                          child: Text('ESSENTIAL ONLY', style: AppTypography.labelCaps.copyWith(color: AppColors.secondary, fontSize: 6)),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 10),
                     Text(
                       loan != null ? 'RM ${loan.restrictedBalanceRemaining.toStringAsFixed(2)}' : 'RM 0.00',
-                      style: AppTypography.headlineLg.copyWith(color: Colors.white, fontSize: 36),
+                      style: AppTypography.headlineLg.copyWith(color: Colors.white, fontSize: 32),
                     ),
-                    Text('Restricted Balance', style: AppTypography.bodySm.copyWith(color: Colors.white.withOpacity(0.5))),
-                    const SizedBox(height: 12),
-                    Text('•••• •••• •••• 4291', style: AppTypography.bodyBase.copyWith(color: Colors.white.withOpacity(0.6))),
+                    Text('Restricted Balance', style: AppTypography.bodySm.copyWith(color: Colors.white.withOpacity(0.5), fontSize: 11)),
+                    const SizedBox(height: 6),
+                    Text('•••• •••• •••• 4291', style: AppTypography.bodyBase.copyWith(color: Colors.white.withOpacity(0.6), fontSize: 12)),
                   ],
                 ),
               ),

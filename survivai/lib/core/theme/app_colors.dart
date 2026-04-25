@@ -13,8 +13,8 @@ class AppColors {
   static const Color secondaryContainer = Color(0xFFFFF2CC);
   static const Color onSecondaryContainer = Color(0xFFB38F00);
 
-  // Surface — Soft Yellow canvas
-  static const Color surface = Color(0xFFFFF8E1);
+  // Surface — Clean White canvas
+  static const Color surface = Color(0xFFFFFFFF);
   static const Color surfaceDim = Color(0xFFF5F0DB);
   static const Color surfaceBright = Color(0xFFFFFFFF);
   static const Color surfaceContainerLowest = Color(0xFFFFFFFF);
@@ -40,7 +40,7 @@ class AppColors {
   // Survival color bands
   static const Color survivalGreen = Color(0xFF00C853);
   static const Color survivalAmber = Color(0xFFFFAB00);
-  static const Color survivalRed = Color(0xFFFF3D00);
+  static const Color survivalRed = Color(0xFFE53935);
 
   // Category tags
   static const Color essential = Color(0xFF00C853);

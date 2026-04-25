@@ -4,7 +4,7 @@ import 'app_colors.dart';
 
 class AppTypography {
   static TextStyle headlineXl = GoogleFonts.outfit(
-    fontSize: 40,
+    fontSize: 48,
     fontWeight: FontWeight.w800,
     height: 1.1,
     letterSpacing: -1.6,
@@ -12,7 +12,7 @@ class AppTypography {
   );
 
   static TextStyle headlineLg = GoogleFonts.outfit(
-    fontSize: 32,
+    fontSize: 38,
     fontWeight: FontWeight.w700,
     height: 1.2,
     letterSpacing: -0.64,
@@ -20,35 +20,35 @@ class AppTypography {
   );
 
   static TextStyle headlineMd = GoogleFonts.outfit(
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: FontWeight.w700,
     height: 1.2,
     color: AppColors.onSurface,
   );
 
   static TextStyle headlineSm = GoogleFonts.outfit(
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: FontWeight.w700,
     height: 1.3,
     color: AppColors.onSurface,
   );
 
   static TextStyle bodyBold = GoogleFonts.inter(
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: FontWeight.w700,
     height: 1.5,
     color: AppColors.onSurface,
   );
 
   static TextStyle bodyBase = GoogleFonts.inter(
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: FontWeight.w500,
     height: 1.6,
     color: AppColors.onSurface,
   );
 
   static TextStyle bodySm = GoogleFonts.inter(
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: FontWeight.w400,
     height: 1.5,
     color: AppColors.onSurfaceVariant,
