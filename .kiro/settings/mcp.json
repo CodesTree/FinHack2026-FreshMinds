@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "aws-mcp": {
+      "command": "uvx",
+      "timeout": 1200000,
+      "transport": "stdio",
+      "args": [
+        "mcp-proxy-for-aws@latest",
+        "https://aws-mcp.us-east-1.api.aws/mcp",
+        "--metadata",
+        "AWS_REGION=ap-southeast-1"
+      ],
+      "env": {
+        "AWS_PROFILE": "finhack_IsbUsersPS-875378932737",
+        "AWS_REGION": "ap-southeast-1"
+      },
+      "disabled": false
+    }
+  }
+}
