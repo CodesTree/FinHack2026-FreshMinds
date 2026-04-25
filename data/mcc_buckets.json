@@ -1,0 +1,101 @@
+{
+  "metadata": {
+    "name": "SurvivAI MCC Bucket Summary",
+    "version": "1.0"
+  },
+  "need": [
+    "4111",
+    "4814",
+    "4900",
+    "5047",
+    "5411",
+    "5812",
+    "5912",
+    "6513"
+  ],
+  "want": [
+    "4121",
+    "5691",
+    "5732",
+    "5813",
+    "5815",
+    "5816",
+    "5921",
+    "6011",
+    "7011",
+    "7832",
+    "7922",
+    "7929",
+    "7995",
+    "8699"
+  ],
+  "save": [],
+  "subcategory_to_mcc": {
+    "public_transport": [
+      "4111"
+    ],
+    "ehailing": [
+      "4121"
+    ],
+    "telco": [
+      "4814"
+    ],
+    "utilities": [
+      "4900"
+    ],
+    "medical": [
+      "5047"
+    ],
+    "groceries": [
+      "5411"
+    ],
+    "clothing": [
+      "5691"
+    ],
+    "electronics": [
+      "5732"
+    ],
+    "food": [
+      "5812"
+    ],
+    "alcohol_bar": [
+      "5813"
+    ],
+    "digital_media": [
+      "5815"
+    ],
+    "gaming": [
+      "5816"
+    ],
+    "pharmacy": [
+      "5912"
+    ],
+    "alcohol_retail": [
+      "5921"
+    ],
+    "cash_withdrawal": [
+      "6011"
+    ],
+    "hotel": [
+      "7011"
+    ],
+    "cinema": [
+      "7832"
+    ],
+    "concert_ticket": [
+      "7922"
+    ],
+    "live_entertainment": [
+      "7929"
+    ],
+    "gambling": [
+      "7995"
+    ],
+    "membership": [
+      "8699"
+    ],
+    "rent": [
+      "6513"
+    ]
+  }
+}

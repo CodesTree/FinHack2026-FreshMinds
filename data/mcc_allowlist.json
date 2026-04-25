@@ -1,0 +1,143 @@
+{
+  "metadata": {
+    "name": "SurvivAI Emergency Mode MCC Allowlist",
+    "version": "1.0"
+  },
+  "allowed_mcc": [
+    {
+      "mcc_code": "4111",
+      "merchant_category": "Local / Suburban Commuter Passenger Transportation",
+      "bucket": "need",
+      "subcategory": "public_transport",
+      "emergency_mode_allowed": true,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "low",
+      "block_reason": null,
+      "demo_examples": [
+        "Rapid KL",
+        "MRT",
+        "LRT",
+        "Prasarana"
+      ]
+    },
+    {
+      "mcc_code": "4814",
+      "merchant_category": "Telecommunication Services",
+      "bucket": "need",
+      "subcategory": "telco",
+      "emergency_mode_allowed": true,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": 50,
+      "risk_level": "low",
+      "block_reason": null,
+      "demo_examples": [
+        "Maxis",
+        "Digi",
+        "CelcomDigi",
+        "U Mobile",
+        "Unifi"
+      ]
+    },
+    {
+      "mcc_code": "4900",
+      "merchant_category": "Utilities — Electric, Gas, Water, Sanitary",
+      "bucket": "need",
+      "subcategory": "utilities",
+      "emergency_mode_allowed": true,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "low",
+      "block_reason": null,
+      "demo_examples": [
+        "TNB",
+        "Air Selangor",
+        "Syabas",
+        "Indah Water",
+        "Unifi"
+      ]
+    },
+    {
+      "mcc_code": "5047",
+      "merchant_category": "Medical, Dental, Ophthalmic and Hospital Equipment and Supplies",
+      "bucket": "need",
+      "subcategory": "medical",
+      "emergency_mode_allowed": true,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "low",
+      "block_reason": null,
+      "demo_examples": [
+        "medical supplies",
+        "clinic medical equipment"
+      ]
+    },
+    {
+      "mcc_code": "5411",
+      "merchant_category": "Grocery Stores",
+      "bucket": "need",
+      "subcategory": "groceries",
+      "emergency_mode_allowed": true,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "low",
+      "block_reason": null,
+      "demo_examples": [
+        "Giant",
+        "Mydin",
+        "AEON",
+        "Econsave",
+        "99 Speedmart"
+      ]
+    },
+    {
+      "mcc_code": "5812",
+      "merchant_category": "Eating Places / Restaurants",
+      "bucket": "need",
+      "subcategory": "food",
+      "emergency_mode_allowed": true,
+      "transaction_cap_rm": 15,
+      "monthly_cap_rm": null,
+      "risk_level": "low",
+      "block_reason": null,
+      "demo_examples": [
+        "mamak",
+        "hawker stall",
+        "food court",
+        "kopitiam"
+      ]
+    },
+    {
+      "mcc_code": "5912",
+      "merchant_category": "Drug Stores and Pharmacies",
+      "bucket": "need",
+      "subcategory": "pharmacy",
+      "emergency_mode_allowed": true,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "low",
+      "block_reason": null,
+      "demo_examples": [
+        "Watsons",
+        "Guardian",
+        "Caring Pharmacy"
+      ]
+    },
+    {
+      "mcc_code": "6513",
+      "merchant_category": "Real Estate Agents and Managers—Rentals",
+      "bucket": "need",
+      "subcategory": "rent",
+      "emergency_mode_allowed": true,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "low",
+      "block_reason": null,
+      "demo_examples": [
+        "room rental",
+        "stall rental",
+        "landlord transfer"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,367 @@
+{
+  "metadata": {
+    "name": "SurvivAI MCC Mapping",
+    "version": "1.0",
+    "generated_at": "2026-04-25T18:06:29",
+    "source_file": "MCC Code.xlsx",
+    "notes": "MCC codes are mapped to need/want/save buckets for budget, Survival Score, and Emergency Mode spend checks. Nudge generation is intentionally excluded for frontend implementation."
+  },
+  "mcc": {
+    "4111": {
+      "mcc_code": "4111",
+      "merchant_category": "Local / Suburban Commuter Passenger Transportation",
+      "bucket": "need",
+      "subcategory": "public_transport",
+      "emergency_mode_allowed": true,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "low",
+      "block_reason": null,
+      "demo_examples": [
+        "Rapid KL",
+        "MRT",
+        "LRT",
+        "Prasarana"
+      ]
+    },
+    "4121": {
+      "mcc_code": "4121",
+      "merchant_category": "Taxicabs and Limousines",
+      "bucket": "want",
+      "subcategory": "ehailing",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "medium",
+      "block_reason": "Non-essential transport. Suggest public transport where possible.",
+      "demo_examples": [
+        "Grab",
+        "AirAsia Ride",
+        "taxi"
+      ]
+    },
+    "4814": {
+      "mcc_code": "4814",
+      "merchant_category": "Telecommunication Services",
+      "bucket": "need",
+      "subcategory": "telco",
+      "emergency_mode_allowed": true,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": 50,
+      "risk_level": "low",
+      "block_reason": null,
+      "demo_examples": [
+        "Maxis",
+        "Digi",
+        "CelcomDigi",
+        "U Mobile",
+        "Unifi"
+      ]
+    },
+    "4900": {
+      "mcc_code": "4900",
+      "merchant_category": "Utilities — Electric, Gas, Water, Sanitary",
+      "bucket": "need",
+      "subcategory": "utilities",
+      "emergency_mode_allowed": true,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "low",
+      "block_reason": null,
+      "demo_examples": [
+        "TNB",
+        "Air Selangor",
+        "Syabas",
+        "Indah Water",
+        "Unifi"
+      ]
+    },
+    "5047": {
+      "mcc_code": "5047",
+      "merchant_category": "Medical, Dental, Ophthalmic and Hospital Equipment and Supplies",
+      "bucket": "need",
+      "subcategory": "medical",
+      "emergency_mode_allowed": true,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "low",
+      "block_reason": null,
+      "demo_examples": [
+        "medical supplies",
+        "clinic medical equipment"
+      ]
+    },
+    "5411": {
+      "mcc_code": "5411",
+      "merchant_category": "Grocery Stores",
+      "bucket": "need",
+      "subcategory": "groceries",
+      "emergency_mode_allowed": true,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "low",
+      "block_reason": null,
+      "demo_examples": [
+        "Giant",
+        "Mydin",
+        "AEON",
+        "Econsave",
+        "99 Speedmart"
+      ]
+    },
+    "5691": {
+      "mcc_code": "5691",
+      "merchant_category": "Men’s and Women’s Clothing Stores",
+      "bucket": "want",
+      "subcategory": "clothing",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "medium",
+      "block_reason": "Discretionary clothing spend is blocked in Emergency Mode.",
+      "demo_examples": [
+        "Padini",
+        "Uniqlo",
+        "H&M"
+      ]
+    },
+    "5732": {
+      "mcc_code": "5732",
+      "merchant_category": "Electronics Stores",
+      "bucket": "want",
+      "subcategory": "electronics",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "medium",
+      "block_reason": "Discretionary electronics spend is blocked in Emergency Mode.",
+      "demo_examples": [
+        "Senheng",
+        "Machines",
+        "Harvey Norman"
+      ]
+    },
+    "5812": {
+      "mcc_code": "5812",
+      "merchant_category": "Eating Places / Restaurants",
+      "bucket": "need",
+      "subcategory": "food",
+      "emergency_mode_allowed": true,
+      "transaction_cap_rm": 15,
+      "monthly_cap_rm": null,
+      "risk_level": "low",
+      "block_reason": null,
+      "demo_examples": [
+        "mamak",
+        "hawker stall",
+        "food court",
+        "kopitiam"
+      ]
+    },
+    "5813": {
+      "mcc_code": "5813",
+      "merchant_category": "Drinking Places — Alcoholic Beverages",
+      "bucket": "want",
+      "subcategory": "alcohol_bar",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "high",
+      "block_reason": "Alcohol-related drinking places are blocked in Emergency Mode.",
+      "demo_examples": [
+        "bar",
+        "pub",
+        "club"
+      ]
+    },
+    "5815": {
+      "mcc_code": "5815",
+      "merchant_category": "Digital Goods Media — Books, Movies, Digital Artwork/Images, Music",
+      "bucket": "want",
+      "subcategory": "digital_media",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "medium",
+      "block_reason": "Digital media spend is discretionary and blocked in Emergency Mode.",
+      "demo_examples": [
+        "Netflix",
+        "Spotify",
+        "Apple Media"
+      ]
+    },
+    "5816": {
+      "mcc_code": "5816",
+      "merchant_category": "Digital Games",
+      "bucket": "want",
+      "subcategory": "gaming",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "medium",
+      "block_reason": "Gaming spend is discretionary and blocked in Emergency Mode.",
+      "demo_examples": [
+        "Steam",
+        "PlayStation Store",
+        "Mobile Legends"
+      ]
+    },
+    "5912": {
+      "mcc_code": "5912",
+      "merchant_category": "Drug Stores and Pharmacies",
+      "bucket": "need",
+      "subcategory": "pharmacy",
+      "emergency_mode_allowed": true,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "low",
+      "block_reason": null,
+      "demo_examples": [
+        "Watsons",
+        "Guardian",
+        "Caring Pharmacy"
+      ]
+    },
+    "5921": {
+      "mcc_code": "5921",
+      "merchant_category": "Package Stores — Beer, Wine, and Liquor",
+      "bucket": "want",
+      "subcategory": "alcohol_retail",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "high",
+      "block_reason": "Alcohol retail purchases are non-essential and blocked in Emergency Mode.",
+      "demo_examples": [
+        "liquor store",
+        "beer/wine shop"
+      ]
+    },
+    "6011": {
+      "mcc_code": "6011",
+      "merchant_category": "Financial Institutions / ATM Cash Disbursement",
+      "bucket": "want",
+      "subcategory": "cash_withdrawal",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "high",
+      "block_reason": "ATM cash withdrawal is blocked to avoid bypassing MCC controls.",
+      "demo_examples": [
+        "ATM withdrawal",
+        "cash advance"
+      ]
+    },
+    "7011": {
+      "mcc_code": "7011",
+      "merchant_category": "Hotels, Motels, Resorts",
+      "bucket": "want",
+      "subcategory": "hotel",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "medium",
+      "block_reason": "Hotel and resort spend is non-essential in Emergency Mode.",
+      "demo_examples": [
+        "hotel",
+        "resort",
+        "motel"
+      ]
+    },
+    "7832": {
+      "mcc_code": "7832",
+      "merchant_category": "Cinema",
+      "bucket": "want",
+      "subcategory": "cinema",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "medium",
+      "block_reason": "Cinema spend is discretionary and blocked in Emergency Mode.",
+      "demo_examples": [
+        "GSC",
+        "TGV",
+        "MBO"
+      ]
+    },
+    "7922": {
+      "mcc_code": "7922",
+      "merchant_category": "Ticket Agencies and Theatrical Producers — Except Motion Pictures",
+      "bucket": "want",
+      "subcategory": "concert_ticket",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "medium",
+      "block_reason": "Concert and event tickets are discretionary and blocked in Emergency Mode.",
+      "demo_examples": [
+        "TicketCharge",
+        "GoLive Asia",
+        "concert ticket"
+      ]
+    },
+    "7929": {
+      "mcc_code": "7929",
+      "merchant_category": "Bands, Orchestras, and Miscellaneous Entertainers — Not Elsewhere Classified",
+      "bucket": "want",
+      "subcategory": "live_entertainment",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "medium",
+      "block_reason": "Live entertainment is discretionary and blocked in Emergency Mode.",
+      "demo_examples": [
+        "live band",
+        "show",
+        "performance"
+      ]
+    },
+    "7995": {
+      "mcc_code": "7995",
+      "merchant_category": "Betting, including Lottery Tickets, Casino Gaming Chips, Off-Track Betting, Wagers at Race Tracks, and Games of Chance to Win Prizes of Monetary Value",
+      "bucket": "want",
+      "subcategory": "gambling",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "critical",
+      "block_reason": "Gambling is high-risk discretionary spending and blocked in Emergency Mode.",
+      "demo_examples": [
+        "lottery",
+        "casino",
+        "betting"
+      ]
+    },
+    "8699": {
+      "mcc_code": "8699",
+      "merchant_category": "Membership Organizations",
+      "bucket": "want",
+      "subcategory": "membership",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "medium",
+      "block_reason": "Membership subscriptions are non-essential and blocked in Emergency Mode.",
+      "demo_examples": [
+        "membership fee",
+        "club subscription"
+      ]
+    },
+    "6513": {
+      "mcc_code": "6513",
+      "merchant_category": "Real Estate Agents and Managers—Rentals",
+      "bucket": "need",
+      "subcategory": "rent",
+      "emergency_mode_allowed": true,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "low",
+      "block_reason": null,
+      "demo_examples": [
+        "room rental",
+        "stall rental",
+        "landlord transfer"
+      ]
+    }
+  }
+}
