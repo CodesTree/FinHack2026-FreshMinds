@@ -1,4 +1,4 @@
-﻿# SurvivAI — Technical Spec Sheet
+# SurvivAI — Technical Spec Sheet
 
 **Version**: 3.0 | **Date**: 25 April 2026 | **Hackathon**: TNGD FinHack 2026
 **Track**: Financial Inclusion | **Team**: TBD
@@ -234,14 +234,61 @@ Lambda Credit (on ECL application):
 
 ### 5.1 Survival Score
 
-| Attribute            | Detail                                                            |
-| -------------------- | ----------------------------------------------------------------- |
-| **Definition**       | `(current_wallet_balance + accessible_savings) ÷ daily_burn_rate` |
-| **daily_burn_rate**  | Rolling 30-day average of essential spending ÷ 30                 |
-| **Update frequency** | Recalculated on every TNG transaction + daily at 00:00            |
-| **Display**          | "You can survive **X days** if you lose your income today"        |
-| **Colour coding**    | Green: >30 days │ Amber: 15–30 days │ Red: <15 days               |
-| **Trend indicator**  | Week-on-week delta shown (↑ improving / ↓ declining)              |
+| Attribute            | Detail                                                                                          |
+| -------------------- | ----------------------------------------------------------------------------------------------- |
+| **Definition**       | `(current_wallet_balance + accessible_savings) ÷ daily_burn_rate`                              |
+| **daily_burn_rate**  | Predicted next-30-day essential spend ÷ 30, derived from 90-day behavioural model              |
+| **Update frequency** | Recalculated on every TNG transaction + daily at 00:00. Frontend receives a `score_delta_pct` percentage payload on each update to reflect score movement without a full screen reload. |
+| **Display**          | "You can survive **X days** if you lose your income today"                                      |
+| **Colour coding**    | Green: ≥ 90 days │ Yellow: < 90 days │ Red: < 30 days                                          |
+| **Trend indicator**  | Week-on-week delta shown (↑ improving / ↓ declining)                                            |
+
+#### 5.1.1 Survival Score Calculation — Spending Habits Model
+
+The Survival Score incorporates a 90-day behavioural spending model to produce a forward-looking survival estimate — not just balance ÷ burn.
+
+**Step 1 — Classify & bucket all transactions (90-day window)**
+
+Every transaction is tagged by the PAI-EAS spending classifier (or rule-based fallback) into a predefined category/subcategory taxonomy. Spending is bucketed into three top-level groups using the **60/30/10 rule** as a reference baseline:
+
+| Bucket  | Label   | Sub-categories covered                                                              |
+| ------- | ------- | ----------------------------------------------------------------------------------- |
+| **60%** | Needs   | Groceries, fuel, utilities, rent, telephone bills, pharmacies                       |
+| **30%** | Wants   | Food delivery, ride-hailing, cafes, entertainment, online shopping, clothing        |
+| **10%** | Savings | Wallet top-up excess, explicit savings transfers                                    |
+
+The full MCC-to-subcategory mapping is stored in the `mcc_allowlist` DynamoDB table and serves as the ground-truth taxonomy for all classification and display logic.
+
+**Step 2 — Predict future spend per subcategory**
+
+Lambda computes a weighted rolling average per subcategory (e.g., `food_delivery`, `groceries`, `rental`) across the 90-day window to forecast next-30-day spend. Recurring bills (rental, Unifi) are detected by regularity and anchored as fixed costs; variable spend (Grab, Shopee) uses a trailing 4-week weighted average.
+
+**Step 3 — Compute survival days**
+
+```
+predicted_monthly_essential = sum(Needs bucket 30-day forecast)
+daily_burn_rate             = predicted_monthly_essential / 30
+survival_days               = current_wallet_balance / daily_burn_rate
+```
+
+> Survival days is intentionally anchored to **essential burn only** — it answers "how long can Siti cover necessities?" not "how long until her wallet hits zero at current pace?"
+
+**Step 4 — Real-time frontend update payload**
+
+On every new TNG transaction write, Lambda recomputes the score and returns a percentage delta alongside the raw survival days. The frontend uses `score_delta_pct` to animate the score ring without a full screen reload:
+
+```json
+{
+  "survival_days": 11,
+  "score_delta_pct": -4.2,
+  "color_band": "red",
+  "needs_pct": 63,
+  "wants_pct": 31,
+  "savings_pct": 6,
+  "top_subcategory": "food_delivery",
+  "top_subcategory_amount_7d": 42.00
+}
+```
 
 ### 5.2 Emergency Mode
 
@@ -251,7 +298,7 @@ Lambda Credit (on ECL application):
 | **Dashboard shows**       | Survival countdown by day, daily burn rate, essential vs discretionary breakdown      |
 | **Nudges**                | 2x daily — morning and evening — with specific RM/day savings suggestions             |
 | **ECL eligibility check** | Auto-triggered when Survival Score < 5 days                                           |
-| **Exit condition**        | User manually deactivates, or new income transaction detected (> RM500 single inflow) |
+| **Exit condition**        | (1) User manually deactivates, or (2) Survival Score recovers to Yellow band (≥ 30 days) — auto-deactivation triggers immediately on the transaction that pushes the score above the Red threshold |
 
 ### 5.3 Emergency Credit Lifeline (ECL)
 
@@ -268,7 +315,7 @@ Lambda Credit (on ECL application):
 
 | Attribute              | Detail                                                                                                                                                                              |
 | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Frequency**          | Twice daily — morning (8am) and evening (8pm)                                                                                                                                       |
+| **Frequency**          | Twice daily — morning (8am) and evening (8pm). Output per nudge: `{ subcategory, amount_rm, survival_days_delta }`.                                                                |
 | **Morning nudge**      | Top discretionary category + weekly RM amount + survival days saved. Example: _"You spent RM42 on Grab this week. Cutting 2 orders = +3 survival days."_                            |
 | **Evening nudge**      | Day's spending recap + projected survival delta. Example: _"You spent RM18 today. At this rate, your runway is 9 days. Tomorrow's target: under RM12."_                             |
 | **Emergency Mode**     | Same slots, elevated urgency. Morning: category savings. Evening: tomorrow's projected burn rate vs current runway.                                                                 |
@@ -453,26 +500,46 @@ This is not a black box. XGBoost SHAP values drive the factor labels. This satis
 
 Upon loan approval, RM150 (example) is added to the user's TNG Visa Card as a **restricted sub-balance**, separate from their main wallet balance. The card processor enforces an MCC allowlist: any transaction attempted against the restricted sub-balance at a non-allowed MCC is declined at POS.
 
+**Blocking is active in Emergency Mode**, not just during ECL repayment. Once a user activates Emergency Mode, non-essential MCCs are locked immediately — even before an ECL is issued. This prevents survival funds from leaking to discretionary spend at the most critical moment.
+
+**Implementation**: MCC enforcement uses **hardcoded logic in Lambda Credit**. The full set of blocked MCC codes is stored in the `mcc_blocklist` DynamoDB table (a sibling table to `mcc_allowlist`). On each transaction check, Lambda reads the blocklist from DynamoDB, matches the incoming MCC, and returns `allowed: false` with a decline reason if matched. The blocklist is operator-editable via DynamoDB without a Lambda redeploy.
+
 ### 8.2 Allowed MCC Codes
 
-| MCC  | Category                         | Example Merchants                     |
-| ---- | -------------------------------- | ------------------------------------- |
-| 5411 | Grocery Stores & Supermarkets    | Giant, Aeon, Mydin, Econsave          |
-| 5541 | Service Stations (Fuel)          | Petronas, Shell, BHPetrol, Caltex     |
-| 5912 | Drug Stores & Pharmacies         | Watson's, Guardian, farmasi kerajaan  |
-| 4900 | Utilities (Electric, Gas, Water) | Tenaga, Air Selangor, Syabas          |
-| 5441 | Sundry/Provision Stores          | Kedai runcit, 7-Eleven (food items)   |
-| 5812 | Eating Places — Essential Only   | Mamak, hawker stalls (≤ RM15 txn cap) |
+*Essential MCCs — permitted during Emergency Mode and against the ECL restricted sub-balance.*
 
-### 8.3 Blocked MCC Examples
+| MCC  | Category                                  | Example Merchants (Malaysia)             | Spend Cap   |
+| ---- | ----------------------------------------- | ---------------------------------------- | ----------- |
+| 4900 | Utilities — Electric, Gas, Water, Sanitary | Tenaga, Air Selangor, Syabas, Unifi      | None        |
+| 5047 | Medical / Dental / Hospital Equipment     | Guardian, Watson's, farmasi kerajaan     | None        |
+| 5411 | Grocery Stores                            | Giant, Aeon, Mydin, Econsave, Jaya Grocer | None        |
+| 5441 | Sundry / Provision Stores                 | Kedai runcit, 99 Speedmart, 7-Eleven (food) | None    |
+| 5812 | Eating Places / Restaurants               | Mamak, hawker stalls, kopitiam           | ≤ RM15/txn  |
+| 5912 | Drug Stores and Pharmacies                | Watson's, Guardian, Caring Pharmacy      | None        |
+| 6513 | Real Estate Agents and Managers — Rentals | Rental payments to verified landlords    | None        |
+| 4111 | Local / Suburban Commuter Transportation  | Rapid KL, MRT, LRT, Prasarana           | None        |
+| 4814 | Telecommunication Services                | Celcom, Maxis, Digi, TM, Unifi          | RM50/month cap |
 
-| MCC  | Category                             |
-| ---- | ------------------------------------ |
-| 5965 | Online Marketplaces (Shopee, Lazada) |
-| 7995 | Gambling Establishments              |
-| 5734 | Electronics / Computer Stores        |
-| 5691 | Clothing Stores                      |
-| 7832 | Motion Picture Theatres              |
+### 8.3 Blocked MCC Codes
+
+*Non-essential MCCs — blocked during Emergency Mode and for all ECL restricted sub-balance transactions.*
+
+| MCC  | Category                                                        | Block Reason                        |
+| ---- | --------------------------------------------------------------- | ----------------------------------- |
+| 4121 | Taxicabs and Limousines                                         | Non-essential transport (use public transit) |
+| 5691 | Men's and Women's Clothing Stores                               | Discretionary — clothing            |
+| 5732 | Electronics Stores                                              | Discretionary — electronics         |
+| 5813 | Drinking Places — Alcoholic Beverages                           | Non-essential consumption           |
+| 5815 | Digital Goods — Books, Movies, Music, Digital Images            | Discretionary — digital media       |
+| 5816 | Digital Games                                                   | Discretionary — gaming              |
+| 5921 | Package Stores — Beer, Wine, and Liquor                         | Non-essential consumption           |
+| 6011 | Financial Institutions / ATM Cash Disbursement                  | Cash bypass risk — MCC lock circumvention |
+| 7011 | Hotels, Motels, Resorts                                         | Non-essential accommodation         |
+| 7832 | Cinema                                                          | Discretionary — entertainment       |
+| 7922 | Ticket Agencies and Theatrical Producers                        | Discretionary — entertainment       |
+| 7929 | Bands, Orchestras, Miscellaneous Entertainers                   | Discretionary — entertainment       |
+| 7995 | Betting, Lottery, Casino Gaming, Wagering                       | Harmful — gambling                  |
+| 8699 | Membership Organizations                                        | Non-essential subscription          |
 
 ### 8.4 Implementation Note
 
@@ -619,11 +686,17 @@ Return: { "decision": "APPROVE", "loan_amount": 150, "risk_tier": "MEDIUM",
 Request:  { user_id: string }
 Response: {
   survival_days: integer,
-  daily_burn_rate: float,        // RM per day
+  score_delta_pct: float,        // % change since last calculation (for frontend animation)
+  daily_burn_rate: float,        // RM per day (essential spend only)
   wallet_balance: float,
   trend_7d: "improving" | "stable" | "declining",
-  color_band: "green" | "amber" | "red",
-  top_discretionary: { category: string, amount_7d: float }
+  color_band: "green" | "yellow" | "red",
+  spending_buckets: {
+    needs_pct: integer,          // % of spend in Needs bucket (60/30/10 reference)
+    wants_pct: integer,
+    savings_pct: integer
+  },
+  top_discretionary: { subcategory: string, amount_7d: float, survival_days_delta: integer }
 }
 ```
 
@@ -664,6 +737,19 @@ Response: {
 }
 ```
 
+### 12.5 POST /emergency-mode/spend-check
+
+Checks whether a transaction is permitted during Emergency Mode (applies even before ECL is issued). Uses the `mcc_blocklist` DynamoDB table directly — no PAI-EAS call required.
+
+```
+Request:  { user_id: string, merchant_mcc: string, amount: float }
+Response: {
+  allowed: boolean,
+  block_reason: string | null,    // e.g. "Non-essential category: Online Marketplace"
+  suggestion: string | null       // e.g. "Try a kedai runcit or Giant nearby instead"
+}
+```
+
 ---
 
 ## 13. Database Schema
@@ -683,7 +769,12 @@ Response: {
   "daily_burn_rate": "number",
   "onboarded_at": "ISO8601",
   "ctos_consent": "boolean",
-  "ctos_consent_timestamp": "ISO8601"
+  "ctos_consent_timestamp": "ISO8601",
+  "spending_bucket_needs_pct": "number",
+  "spending_bucket_wants_pct": "number",
+  "spending_bucket_savings_pct": "number",
+  "predicted_monthly_essential_rm": "number",
+  "predicted_monthly_discretionary_rm": "number"
 }
 ```
 
@@ -729,6 +820,19 @@ Response: {
 }
 ```
 
+**mcc_blocklist** *(non-essential MCCs blocked during Emergency Mode and ECL spend)*
+
+```json
+{
+  "mcc_code": "string (PK)",
+  "category": "string",
+  "description": "string",
+  "block_reason": "string"
+}
+```
+
+> The full MCC code dataset (ISO 18245) is pre-loaded and categorised at onboarding time into `mcc_allowlist` (essential) and `mcc_blocklist` (non-essential). Both tables serve as the canonical taxonomy for the spending classifier subcategory labels, the Survival Score bucket logic, and Emergency Mode enforcement.
+
 ---
 
 ## 14. Compliance & Privacy
@@ -761,22 +865,24 @@ Response: {
 - [ ] Survival Score displayed from mock transaction data
 - [ ] Spending classifier tagging transactions (Essential / Discretionary)
 - [ ] Emergency Mode screen with countdown and daily burn
-- [ ] ECL application flow — mock CTOS response + TNG signals → approval/decline
-- [ ] MCC-locked card screen showing restricted balance + allowed/blocked transaction simulation
 - [ ] AWS Lambda endpoints for all above
 - [ ] DynamoDB seeded with Siti's demo data
 - [ ] Bilingual nudge displayed on Survival Score screen (template engine — no external API required)
 
 ### Should Have — Demo-Enhancing
 
-- [ ] Repayment schedule displayed post-approval
 - [ ] Trend chart on Survival Score (7-day history)
+- [ ] Spend lock warning on non-essential transaction attempts during Emergency Mode
 
 ### Nice to Have — If Time Allows
 
 - [ ] Alibaba Cloud PAI-EAS live call (vs fallback classifier)
 - [ ] Government benefits checker via OpenSearch
-- [ ] Spend lock warning on non-essential transaction attempts
+- [ ] **ECL — Emergency Credit Lifeline** *(additional add-on — implement if time permits)*
+  - [ ] ECL application flow — mock CTOS response + TNG signals → approval/decline
+  - [ ] MCC-locked card screen showing restricted balance + allowed/blocked transaction simulation
+  - [ ] Repayment schedule displayed post-approval
+  - [ ] Lambda Credit endpoint + CTOS mock setup
 
 ---
 
@@ -797,10 +903,10 @@ Response: {
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
 | **17:00–19:00** | Repo init. DynamoDB tables created. Siti's mock data seeded. AWS Lambda skeleton deployed. Flutter project initialised — 4 screens scaffolded.       | Backend + Infra + Frontend |
 | **19:00–21:00** | Spending classifier Lambda live (calls PAI-EAS or rule-based fallback). Survival Score formula working end-to-end. Emergency Mode API live.          | Backend + AI               |
-| **21:00–23:00** | ECL application flow: feature engineering Lambda → PAI-EAS credit scorer (or stub) → decision returned to Flutter. MCC-locked card screen rendering. | Backend + Frontend         |
-| **23:00–01:00** | Nudge template engine live (EN + BM, 8 categories). MCC transaction check API. Flutter ↔ Backend fully integrated for core flow.                     | AI + Backend + Frontend    |
-| **01:00–03:00** | PAI-EAS both endpoints confirmed live (spending classifier + credit scorer). OpenSearch benefits lookup (if time). SLS logging wired up.             | Infra + AI                 |
-| **03:00–05:00** | Repayment schedule UI. Flutter UI polish. Edge cases (no CTOS consent, decline flow). Demo data rehearsal.                                           | Frontend + Backend         |
+| **21:00–23:00** | Nudge template engine live (EN + BM, 8 categories). Emergency Mode MCC spend-lock API. Flutter ↔ Backend fully integrated for core flow.            | AI + Backend + Frontend    |
+| **23:00–01:00** | PAI-EAS spending classifier endpoint confirmed live. OpenSearch benefits lookup (if time). SLS logging wired up. Flutter UI polish.                  | Infra + AI + Frontend      |
+| **01:00–03:00** | Demo data rehearsal. Edge case handling. Trend chart on Survival Score. Buffer for core flow fixes.                                                  | All                        |
+| **03:00–05:00** | *(If time allows)* **ECL add-on**: Lambda Credit + CTOS mock + ECL application flow + MCC-locked card screen + repayment schedule UI.               | Backend + Frontend         |
 | **05:00–07:00** | Demo video recorded (Siti's full journey). Pitch deck built (7 slides).                                                                              | All                        |
 | **07:00–08:30** | GitHub README. Submission form filled. Final demo dry run. Q&A roles assigned.                                                                       | All                        |
 
@@ -809,12 +915,12 @@ Response: {
 ```
 DynamoDB schema  →  Survival Score Lambda  →  Frontend Score Screen
                                           ↘
-CTOS mock setup  →  Credit Lambda         →  ECL Application Screen  →  MCC Card Screen
-                                          ↗
-Template Engine  →  Nudge Lambda          →  Emergency Mode Screen
+Template Engine  →  Nudge Lambda          →  Emergency Mode Screen  →  MCC Spend-Lock API
 ```
 
-Template Engine and MCC card screen can be parallelised after the core Lambda is working. Template authoring (EN + BM strings) can be done offline by @ai-dev while @backend-dev wires the Lambda.
+Template Engine and MCC spend-lock API can be parallelised after the core Lambda is working. Template authoring (EN + BM strings) can be done offline by @ai-dev while @backend-dev wires the Lambda.
+
+> **ECL (Emergency Credit Lifeline) is off the critical path.** If the team reaches 03:00 with core features stable, begin the ECL add-on: Lambda Credit → CTOS mock → ECL flow → MCC-locked card screen → repayment UI. This slot is the designated ECL window; do not start it earlier at the expense of core feature polish.
 
 ---
 
@@ -916,7 +1022,7 @@ _"SurvivAI. Because knowing you have 11 days is the first step to having 30."_
 
 | Phase                | Timeline | What Ships                                                                                                                                                                                                                                      |
 | -------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Hackathon MVP**    | Apr 2026 | Survival Score, Emergency Mode, ECL with MCC lock, bilingual template nudges                                                                                                                                                                    |
+| **Hackathon MVP**    | Apr 2026 | Survival Score, Emergency Mode, bilingual template nudges, MCC spend-lock. ECL implemented as add-on if time permits.                                                                                                                                                                    |
 | **Beta (TNG Pilot)** | Q3 2026  | Live CTOS integration, real PAI-EAS model trained on TNG data, 10K B40 users                                                                                                                                                                    |
 | **Scale**            | Q1 2027  | 100K users, repayment data fed back to CTOS for credit history building, ECL limit increases. Bedrock LLM nudges replace template engine — personalisation across 50+ regional spending patterns justifies generative capability at this scale. |
 | **Ecosystem**        | Q3 2027  | Partner with Bank Rakyat / BSN to convert SurvivAI credit history into formal micro-loan products. 1M B40 users with verifiable credit profiles.                                                                                                |
