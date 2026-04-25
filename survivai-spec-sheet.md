@@ -1,6 +1,6 @@
-# SurvivAI — Technical Spec Sheet
+﻿# SurvivAI — Technical Spec Sheet
 
-**Version**: 2.0 | **Date**: 25 April 2026 | **Hackathon**: TNGD FinHack 2026
+**Version**: 3.0 | **Date**: 25 April 2026 | **Hackathon**: TNGD FinHack 2026
 **Track**: Financial Inclusion | **Team**: TBD
 
 ---
@@ -120,8 +120,7 @@ The architecture follows a strict **one cloud = one concern domain** principle. 
 │  │  DynamoDB           │  │  Secrets Manager             │   │
 │  │  users · txns       │  │  PAI-EAS token · CTOS key    │   │
 │  │  loans · MCC list   │  │  Rotation-ready              │   │
-│  │  classifier_flag    │  └──────────────────────────────┘   │
-│  └─────────────────────┘                                     │
+│  └─────────────────────┘  └──────────────────────────────┘   │
 │                                                              │
 │  → Feature vectors cross to Alibaba Cloud PAI-EAS           │
 │    via EAS Dedicated Gateway (IP-whitelisted)               │
@@ -164,31 +163,33 @@ The architecture follows a strict **one cloud = one concern domain** principle. 
 | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | All ML serving on Alibaba Cloud PAI-EAS         | Consolidates inference in one place. Malaysian merchant data fine-tuning is native to Alibaba Cloud's SEA infrastructure. Avoids scattered AI across two clouds.                                                                                                       |
 | Audit trail on Alibaba Cloud SLS (not AWS)      | SLS is co-located with PAI-EAS — the most compute-intensive layer. Credit scoring inference + audit log belong together. Cross-cloud audit logging adds latency and cost for no gain.                                                                                  |
-| AWS Bedrock kept on AWS                         | Bedrock is a managed LLM API call, not model hosting. It sits entirely in the AWS request chain and never touches the ML serving layer. This is the correct categorisation.                                                                                            |
+| AWS Bedrock removed                             | Nudge generation uses a bilingual template engine inside Lambda Core — no external LLM call. Bedrock is the Year 2 upgrade path at 100K+ users where personalisation across 50+ regional sub-categories justifies generative capability.             |
 | AWS SageMaker removed                           | Replaced by PAI-EAS. Running two separate ML hosting platforms (SageMaker + PAI) for the same problem was the original anti-pattern. One platform, one place.                                                                                                          |
 | Flutter replaces React Native / TNG MiniApp SDK | Flutter supports iOS, Android, and web from a single Dart codebase. TNG MiniApp can be packaged as a Flutter WebView embed. Cross-platform without code duplication.                                                                                                   |
 | No PII crosses cloud boundary                   | Lambda sends only feature vectors (numbers) to PAI-EAS, never raw transaction strings, NRIC, or names. Raw merchant names sent to the spending classifier carry no user identifiers. PDPA data residency maintained.                                                   |
-| `classifier_flag` in DynamoDB                   | Boolean flag set by a CloudWatch alarm when PAI-EAS P99 latency exceeds 500ms or error rate exceeds 5%. Lambda Core reads this flag and switches to the rule-based fallback classifier automatically. Acts as a circuit breaker without requiring Lambda redeployment. |
+| Inline try/catch fallback (no circuit breaker)  | PAI-EAS exceptions caught inline in Lambda Core. On failure, the same invocation runs the keyword-based rule classifier. Eliminates the health check Lambda, CloudWatch alarm, and any DynamoDB flag.                                                |
 
-### 4.3 Data Flow — Path A: Survival Score (Async Classification)
+### 4.3 Data Flow — Path A: Survival Score (Synchronous Classification)
 
 ```
 Flutter → API Gateway → Lambda Core
        → [fetch 90d pre-classified transactions from DynamoDB]
-         (categories already written by consumer Lambda — no inline PAI-EAS call)
+         (categories written synchronously when each transaction was ingested)
        → [compute: daily_burn = avg(essential_spend) / 30]
        → [compute: survival_days = wallet_balance / daily_burn]
        → [Template Engine: select EN/BM template for top discretionary category + compute savings delta]
        → API response → Flutter renders Survival Score UI
 
-Background (SQS consumer):
-       New TNG transaction arrives → Lambda Core writes to SQS inference queue
-       → Consumer Lambda reads queue
-       → [check DynamoDB classifier_flag — PAI-EAS healthy?]
-         YES → [send merchant name + amount to PAI-EAS via EAS Dedicated Gateway]
-               ← [receive Essential / Discretionary tags]
-         NO  → [rule-based fallback: keyword list classification]
-       → [DynamoDB: write category + confidence back to transaction record]
+On new TNG transaction write (same Lambda invocation, synchronous):
+       try:
+         → [send merchant name + amount to PAI-EAS via EAS Dedicated Gateway]
+           ← [receive Essential / Discretionary / Savings tag + confidence]
+       catch (PAI-EAS timeout or error):
+         → [rule-based fallback: keyword list classification — same execution, no queue]
+       → [DynamoDB: write category + confidence to transaction record]
+
+Production scaling note: replace synchronous classification with an SQS queue +
+consumer Lambda when transaction volume justifies async decoupling.
 ```
 
 ### 4.4 Data Flow — Path B: Emergency Credit Lifeline (Synchronous)
@@ -206,21 +207,25 @@ Flutter (user consents) → API Gateway → Lambda Credit
        → API response → Flutter shows approval + restricted card balance
 ```
 
-### 4.5 Circuit Breaker — PAI-EAS Fallback
+### 4.5 PAI-EAS Fallback — Inline Try/Catch
 
 ```
-CloudWatch alarm:
-  Metric: PAI-EAS health check Lambda (runs every 60s)
-  Condition: P99 latency > 500ms OR error rate > 5% for 2 consecutive periods
-  Action: DynamoDB UpdateItem → { classifier_flag: "FALLBACK" }
+Lambda Core (on transaction write):
+  try:
+    → POST to EAS Dedicated Gateway (spending classifier)
+    ← receive category + confidence
+  catch (timeout | connection error | non-200 response):
+    → run keyword-based rule classifier (hardcoded merchant list)
+    → set confidence = 0.0 to signal fallback was used
+  → DynamoDB: write category + confidence to transaction record
 
-Recovery:
-  Health check Lambda detects PAI-EAS healthy for 3 consecutive periods
-  Action: DynamoDB UpdateItem → { classifier_flag: "PAI_EAS" }
-
-Lambda Core reads classifier_flag on every SQS message:
-  "PAI_EAS"  → call EAS Dedicated Gateway endpoint
-  "FALLBACK" → run keyword-based rule classifier (hardcoded merchant list)
+Lambda Credit (on ECL application):
+  try:
+    → POST to EAS Dedicated Gateway (credit scorer)
+    ← receive decision + SHAP factors
+  catch (timeout | connection error | non-200 response):
+    → return DECLINE with reason "scoring service unavailable — please retry"
+    → log error to CloudWatch for alerting
 ```
 
 ---
@@ -259,16 +264,19 @@ Lambda Core reads classifier_flag on every SQS message:
 | **Interest**               | Zero interest for first loan. Small service fee (RM5) for subsequent loans.               |
 | **First loan eligibility** | Survival Score triggered Emergency Mode + 60 days of TNG transaction history              |
 
-### 5.4 Daily Nudge System
+### 5.4 Nudge System (Twice Daily)
 
-| Attribute              | Detail                                                                                                                                                                   |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Frequency**          | Once daily (morning, 8am)                                                                                                                                                |
-| **Content**            | Personalised to top discretionary category and computed savings delta. Example: _"You spent RM42 on Grab this week. Cutting 2 orders = +3 survival days."_               |
-| **Generation**         | Bilingual template engine (EN + BM) inside Lambda Core. Category + weekly amount + survival-days delta injected into pre-written template strings. No external API call. |
-| **Languages**          | English and Bahasa Malaysia. User language preference stored in `users` DynamoDB table.                                                                                  |
-| **Categories covered** | food_delivery · ride_hailing · cafes · entertainment · online_shopping · subscriptions · clothing · other_discretionary                                                  |
-| **Habit loop**         | User taps to acknowledge — acknowledgement streak tracked and celebrated                                                                                                 |
+| Attribute              | Detail                                                                                                                                                                              |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Frequency**          | Twice daily — morning (8am) and evening (8pm)                                                                                                                                       |
+| **Morning nudge**      | Top discretionary category + weekly RM amount + survival days saved. Example: _"You spent RM42 on Grab this week. Cutting 2 orders = +3 survival days."_                            |
+| **Evening nudge**      | Day's spending recap + projected survival delta. Example: _"You spent RM18 today. At this rate, your runway is 9 days. Tomorrow's target: under RM12."_                             |
+| **Emergency Mode**     | Same slots, elevated urgency. Morning: category savings. Evening: tomorrow's projected burn rate vs current runway.                                                                 |
+| **Generation**         | Bilingual template engine (EN + BM) inside Lambda Core. Category + weekly amount + survival-days delta injected into pre-written template strings. No external API call.            |
+| **Languages**          | English and Bahasa Malaysia. User language preference stored in `users` DynamoDB table.                                                                                             |
+| **Categories covered** | food_delivery · ride_hailing · cafes · entertainment · online_shopping · subscriptions · clothing · other_discretionary                                                             |
+| **Habit loop**         | User taps to acknowledge — acknowledgement streak tracked and celebrated                                                                                                            |
+| **Demo integration**   | Siti's seed data ships with a pre-delivered morning nudge. A `?demo_nudge=evening` URL param fires the evening template inline — presenter triggers during demo, no timing required |
 
 ### 5.5 Government Benefits Checker (Nice-to-Have)
 
@@ -478,9 +486,8 @@ For the hackathon MVP, MCC enforcement is **simulated at the API layer** — the
 | ----------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Frontend**            | Flutter (Dart)                      | Single codebase for iOS, Android, and TNG MiniApp WebView. Faster UI iteration than React Native for a 16-hour build.                                                                                                      |
 | **API Gateway**         | AWS API Gateway                     | Serverless, scales to TNG's 24M user base. JWT auth + rate limiting at edge.                                                                                                                                               |
-| **Core Lambda**         | AWS Lambda (Node.js 20)             | Survival Score, Emergency Mode, nudge dispatch, template engine                                                                                                                                                            |
+| **Core Lambda**         | AWS Lambda (Node.js 20)             | Survival Score, Emergency Mode, nudge dispatch, template engine, inline transaction classification                                                                                                                          |
 | **Credit Lambda**       | AWS Lambda (Python 3.11)            | Credit feature engineering, CTOS API call, PAI-EAS invoke, MCC disbursal                                                                                                                                                   |
-| **LLM Nudges**          | AWS Bedrock — Claude Haiku          | Managed LLM API call — stays on AWS. Not model hosting. Malay-language capable.                                                                                                                                            |
 | **Primary DB**          | AWS DynamoDB                        | Low-latency key-value, serverless, scales instantly                                                                                                                                                                        |
 | **Spending Classifier** | Alibaba Cloud PAI-EAS               | All ML serving consolidated here. MY merchant name fine-tuning (kedai runcit, pasar malam, mamak).                                                                                                                         |
 | **Credit Scorer**       | Alibaba Cloud PAI-EAS               | XGBoost model hosted on PAI-EAS. Same platform as classifier — one ML serving layer, not two.                                                                                                                              |
@@ -491,22 +498,23 @@ For the hackathon MVP, MCC enforcement is **simulated at the API layer** — the
 | **External API**        | CTOS B2B Data API                   | Thin-file credit signals for B40 users                                                                                                                                                                                     |
 
 > **Removed from v1.0**: AWS SageMaker. Running SageMaker (AWS) alongside PAI-EAS (Alibaba) for the same ML serving function violated the single-domain principle. All model serving now lives on Alibaba Cloud.
+>
+> **Removed from v2.0**: AWS Bedrock. Nudge generation uses the bilingual template engine inside Lambda Core — no LLM call required for MVP. Bedrock is the Year 2 upgrade path at 100K+ users.
 
 ---
 
 ## 10. Cloud Architecture — AWS
 
-### Domain: Compute, Data, Auth, LLM API
+### Domain: Compute, Data, Auth
 
-AWS is responsible for everything user-facing and all stateful data. It does not host any ML models and no longer calls any external LLM API.
+AWS is responsible for everything user-facing and all stateful data. It does not host any ML models and does not call any external LLM APIs.
 
-| Service                    | Role                                                                | Why Non-Negotiable                                              |
-| -------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------- |
-| **API Gateway**            | Single entry point — rate limiting, JWT auth, routing               | Load-bearing edge layer                                         |
-| **Lambda (Core)**          | Survival Score, Emergency Mode, nudge orchestration, PAI-EAS calls  | Core business logic                                             |
-| **Lambda (Credit)**        | CTOS API, feature engineering, PAI-EAS credit invoke, MCC disbursal | Core credit decisioning                                         |
-| **Bedrock (Claude Haiku)** | Daily nudge generation                                              | Managed LLM API — lives naturally on AWS. Not ML model hosting. |
-| **DynamoDB**               | All persistent state: users, transactions, loans, MCC allowlist     | Primary database                                                |
+| Service             | Role                                                                                              | Why Non-Negotiable      |
+| ------------------- | ------------------------------------------------------------------------------------------------- | ----------------------- |
+| **API Gateway**     | Single entry point — rate limiting, JWT auth, routing                                             | Load-bearing edge layer |
+| **Lambda (Core)**   | Survival Score, Emergency Mode, nudge orchestration (template engine), inline transaction tagging | Core business logic     |
+| **Lambda (Credit)** | CTOS API, feature engineering, PAI-EAS credit invoke, MCC disbursal                              | Core credit decisioning |
+| **DynamoDB**        | All persistent state: users, transactions, loans, MCC allowlist                                   | Primary database        |
 
 ### What AWS Does Not Do
 
@@ -516,8 +524,10 @@ AWS is responsible for everything user-facing and all stateful data. It does not
 ### IAM Roles
 
 ```
-LambdaCoreRole:    AmazonDynamoDBFullAccess, AmazonBedrockFullAccess
+LambdaCoreRole:    AmazonDynamoDBFullAccess
+                   secretsmanager:GetSecretValue (inline policy, scoped to survivai/pai-eas-token)
 LambdaCreditRole:  AmazonDynamoDBFullAccess
+                   secretsmanager:GetSecretValue (inline policy, scoped to survivai/pai-eas-token + survivai/ctos-key)
 ```
 
 ---
@@ -798,7 +808,7 @@ Template Engine and MCC card screen can be parallelised after the core Lambda is
 
 ## 17. Demo Script
 
-**Duration**: 2 minutes 30 seconds | **Presenter**: Lead + AI dev for technical Q&A
+**Duration**: 3 minutes 00 seconds | **Presenter**: Lead + AI dev for technical Q&A
 
 ---
 
@@ -810,7 +820,21 @@ Show: Survival Score screen. **"11 days"** in red. Daily burn rate: RM7.90/day.
 
 ---
 
-**[0:20–0:50] — The AI Engine (Leslie's moment)**
+**[0:20–0:40] — The Morning Nudge**
+
+Show: Morning nudge card on the Survival Score screen (pre-delivered in seed data).
+
+_"Every morning at 8am, SurvivAI sends Siti a nudge. This morning: she spent RM42 on Grab this week. Cut two orders — that's +3 survival days."_
+
+Tap the language toggle. Card flips to Bahasa Malaysia: _"Anda belanja RM42 untuk penghantaran makanan minggu ini. Kurangkan 2 pesanan = +3 hari survival."_
+
+_"Bilingual. No LLM call. The template engine runs inside Lambda — zero API cost, instant response."_
+
+Trigger the evening nudge via the demo button. Show the projected burn card: _"You spent RM18 today. At this rate, your runway is 9 days. Tomorrow's target: under RM12."_
+
+---
+
+**[0:40–1:10] — The AI Engine (Leslie's moment)**
 
 _"SurvivAI analysed 90 days of Siti's TNG transactions. Our classifier — running on Alibaba Cloud PAI, trained on Malaysian merchant data — tagged every transaction: Giant is Essential, Grab is Discretionary, kedai runcit is Essential."_
 
@@ -820,7 +844,7 @@ _"The Survival Score is live. Every new transaction updates it in real time."_
 
 ---
 
-**[0:50–1:20] — Crisis Hits**
+**[1:10–1:40] — Crisis Hits**
 
 _"Today, Siti was laid off."_
 
@@ -836,7 +860,7 @@ Show approval screen with top 3 factors.
 
 ---
 
-**[1:20–1:50] — The MCC Lock (Enshu's moment)**
+**[1:40–2:10] — The MCC Lock (Enshu's moment)**
 
 _"But here's what makes this responsible lending, not reckless lending."_
 
@@ -850,7 +874,7 @@ _"Every ringgit goes to rice and fuel — not Shopee. The MCC allowlist is enfor
 
 ---
 
-**[1:50–2:20] — The Bigger Picture**
+**[2:10–2:45] — The Bigger Picture**
 
 _"Siti repays RM15/week from her next top-ups. For the first time, she has a credit history. Next time her limit is RM200. In Year 2, one million B40 users build credit profiles through SurvivAI — closing Malaysia's credit invisibility gap."_
 
@@ -858,7 +882,7 @@ Show Year 2 vision slide: credit history growth curve.
 
 ---
 
-**[2:20–2:30] — Close**
+**[2:45–3:00] — Close**
 
 _"SurvivAI. Because knowing you have 11 days is the first step to having 30."_
 
@@ -868,9 +892,9 @@ _"SurvivAI. Because knowing you have 11 days is the first step to having 30."_
 
 | Criterion                     | How We Win It                                                                                                                                                                                                                                                                                                   | Judge         |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| **AI & Intelligent Systems**  | Two distinct PAI-EAS models on Alibaba Cloud (spending classifier + XGBoost credit scorer). Both are purposeful — none decorative. AI is not scattered; it is consolidated on one platform. The nudge system is deliberately a template engine — a deliberate engineering tradeoff that judges can engage with. | Leslie        |
-| **Technical Implementation**  | Serverless AWS stack (Lambda + API Gateway + DynamoDB + SQS), MCC-locked card sub-balance (production-architecture pattern), CTOS B2B API integration, SHAP explainability on credit decisions, bilingual nudge engine, PAI-EAS circuit breaker. Ambitious and functional for 24 hours.                         | Leslie        |
-| **Multi-Cloud Service Usage** | AWS: API Gateway + Lambda + SQS + Secrets Manager + DynamoDB — core compute and data. Alibaba Cloud: PAI-EAS (AI inference) + EAS Dedicated Gateway + OpenSearch (benefit search) + SLS (unified audit trail) + OSS (model artefacts). Both clouds serve non-substitutable roles.                               | Enshu         |
+| **AI & Intelligent Systems**  | Two distinct PAI-EAS models on Alibaba Cloud (spending classifier + XGBoost credit scorer). Both are purposeful — none decorative. AI is consolidated on one platform. The nudge system is a deliberate template engine — a conscious engineering tradeoff judges can engage with ("why not LLM?" → cost and latency; Bedrock enters at Year 2 at 100K users). | Leslie        |
+| **Technical Implementation**  | Serverless AWS stack (Lambda + API Gateway + Secrets Manager + DynamoDB), MCC-locked card sub-balance (production-architecture pattern), CTOS B2B API integration, SHAP explainability on credit decisions, bilingual template nudge engine (twice daily), inline PAI-EAS fallback. Ambitious and functional for 24 hours.                               | Leslie        |
+| **Multi-Cloud Service Usage** | AWS: API Gateway + Lambda + Secrets Manager + DynamoDB — core compute and data. Alibaba Cloud: PAI-EAS (AI inference) + EAS Dedicated Gateway + SLS with LoongCollector (unified audit trail) + OpenSearch (benefit search) + OSS (model artefacts). Both clouds serve non-substitutable roles.                                                          | Enshu         |
 | **Impact & Feasibility**      | Named persona (Siti). Addresses 5.8M B40 households. Extends survival by 6–8 days per emergency. Responsible MCC-locked lending. Repayment builds credit history — long-term poverty gap reduction. TNG's 24M users are the distribution moat.                                                                  | Wing + Leslie |
 | **Presentation & Teamwork**   | Demo opens with Siti's story (not architecture). Live functional demo — not Figma. Clear one-sentence value prop. Compliance addressed proactively. Year 2 vision closes the pitch.                                                                                                                             | Wing          |
 
