@@ -1,0 +1,229 @@
+{
+  "metadata": {
+    "name": "SurvivAI Emergency Mode MCC Blocklist",
+    "version": "1.0"
+  },
+  "blocked_mcc": [
+    {
+      "mcc_code": "4121",
+      "merchant_category": "Taxicabs and Limousines",
+      "bucket": "want",
+      "subcategory": "ehailing",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "medium",
+      "block_reason": "Non-essential transport. Suggest public transport where possible.",
+      "demo_examples": [
+        "Grab",
+        "AirAsia Ride",
+        "taxi"
+      ]
+    },
+    {
+      "mcc_code": "5691",
+      "merchant_category": "Men’s and Women’s Clothing Stores",
+      "bucket": "want",
+      "subcategory": "clothing",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "medium",
+      "block_reason": "Discretionary clothing spend is blocked in Emergency Mode.",
+      "demo_examples": [
+        "Padini",
+        "Uniqlo",
+        "H&M"
+      ]
+    },
+    {
+      "mcc_code": "5732",
+      "merchant_category": "Electronics Stores",
+      "bucket": "want",
+      "subcategory": "electronics",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "medium",
+      "block_reason": "Discretionary electronics spend is blocked in Emergency Mode.",
+      "demo_examples": [
+        "Senheng",
+        "Machines",
+        "Harvey Norman"
+      ]
+    },
+    {
+      "mcc_code": "5813",
+      "merchant_category": "Drinking Places — Alcoholic Beverages",
+      "bucket": "want",
+      "subcategory": "alcohol_bar",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "high",
+      "block_reason": "Alcohol-related drinking places are blocked in Emergency Mode.",
+      "demo_examples": [
+        "bar",
+        "pub",
+        "club"
+      ]
+    },
+    {
+      "mcc_code": "5815",
+      "merchant_category": "Digital Goods Media — Books, Movies, Digital Artwork/Images, Music",
+      "bucket": "want",
+      "subcategory": "digital_media",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "medium",
+      "block_reason": "Digital media spend is discretionary and blocked in Emergency Mode.",
+      "demo_examples": [
+        "Netflix",
+        "Spotify",
+        "Apple Media"
+      ]
+    },
+    {
+      "mcc_code": "5816",
+      "merchant_category": "Digital Games",
+      "bucket": "want",
+      "subcategory": "gaming",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "medium",
+      "block_reason": "Gaming spend is discretionary and blocked in Emergency Mode.",
+      "demo_examples": [
+        "Steam",
+        "PlayStation Store",
+        "Mobile Legends"
+      ]
+    },
+    {
+      "mcc_code": "5921",
+      "merchant_category": "Package Stores — Beer, Wine, and Liquor",
+      "bucket": "want",
+      "subcategory": "alcohol_retail",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "high",
+      "block_reason": "Alcohol retail purchases are non-essential and blocked in Emergency Mode.",
+      "demo_examples": [
+        "liquor store",
+        "beer/wine shop"
+      ]
+    },
+    {
+      "mcc_code": "6011",
+      "merchant_category": "Financial Institutions / ATM Cash Disbursement",
+      "bucket": "want",
+      "subcategory": "cash_withdrawal",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "high",
+      "block_reason": "ATM cash withdrawal is blocked to avoid bypassing MCC controls.",
+      "demo_examples": [
+        "ATM withdrawal",
+        "cash advance"
+      ]
+    },
+    {
+      "mcc_code": "7011",
+      "merchant_category": "Hotels, Motels, Resorts",
+      "bucket": "want",
+      "subcategory": "hotel",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "medium",
+      "block_reason": "Hotel and resort spend is non-essential in Emergency Mode.",
+      "demo_examples": [
+        "hotel",
+        "resort",
+        "motel"
+      ]
+    },
+    {
+      "mcc_code": "7832",
+      "merchant_category": "Cinema",
+      "bucket": "want",
+      "subcategory": "cinema",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "medium",
+      "block_reason": "Cinema spend is discretionary and blocked in Emergency Mode.",
+      "demo_examples": [
+        "GSC",
+        "TGV",
+        "MBO"
+      ]
+    },
+    {
+      "mcc_code": "7922",
+      "merchant_category": "Ticket Agencies and Theatrical Producers — Except Motion Pictures",
+      "bucket": "want",
+      "subcategory": "concert_ticket",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "medium",
+      "block_reason": "Concert and event tickets are discretionary and blocked in Emergency Mode.",
+      "demo_examples": [
+        "TicketCharge",
+        "GoLive Asia",
+        "concert ticket"
+      ]
+    },
+    {
+      "mcc_code": "7929",
+      "merchant_category": "Bands, Orchestras, and Miscellaneous Entertainers — Not Elsewhere Classified",
+      "bucket": "want",
+      "subcategory": "live_entertainment",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "medium",
+      "block_reason": "Live entertainment is discretionary and blocked in Emergency Mode.",
+      "demo_examples": [
+        "live band",
+        "show",
+        "performance"
+      ]
+    },
+    {
+      "mcc_code": "7995",
+      "merchant_category": "Betting, including Lottery Tickets, Casino Gaming Chips, Off-Track Betting, Wagers at Race Tracks, and Games of Chance to Win Prizes of Monetary Value",
+      "bucket": "want",
+      "subcategory": "gambling",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "critical",
+      "block_reason": "Gambling is high-risk discretionary spending and blocked in Emergency Mode.",
+      "demo_examples": [
+        "lottery",
+        "casino",
+        "betting"
+      ]
+    },
+    {
+      "mcc_code": "8699",
+      "merchant_category": "Membership Organizations",
+      "bucket": "want",
+      "subcategory": "membership",
+      "emergency_mode_allowed": false,
+      "transaction_cap_rm": null,
+      "monthly_cap_rm": null,
+      "risk_level": "medium",
+      "block_reason": "Membership subscriptions are non-essential and blocked in Emergency Mode.",
+      "demo_examples": [
+        "membership fee",
+        "club subscription"
+      ]
+    }
+  ]
+}
