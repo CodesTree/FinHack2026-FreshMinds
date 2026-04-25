@@ -1,5 +1,5 @@
 # SurvivAI — Technical Spec Sheet
-**Version**: 1.0 | **Date**: 25 April 2026 | **Hackathon**: TNGD FinHack 2026
+**Version**: 2.0 | **Date**: 25 April 2026 | **Hackathon**: TNGD FinHack 2026
 **Track**: Financial Inclusion | **Team**: TBD
 
 ---
@@ -84,51 +84,101 @@ When a user's Survival Score drops below a critical threshold, SurvivAI offers a
 
 ## 4. System Architecture
 
+### 4.1 Multi-Cloud Domain Separation
+
+The architecture follows a strict **one cloud = one concern domain** principle. AI/ML is not distributed across both clouds — all model serving is consolidated on Alibaba Cloud PAI-EAS. AWS owns all user-facing compute, business logic, and data persistence. This is the correct multi-cloud pattern: each provider does what it does best, with a clean API boundary between them.
+
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     TNG MiniApp (Frontend)                  │
-│  Survival Score UI │ Emergency Mode │ Loan Application UI   │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ HTTPS/REST
-┌──────────────────────────▼──────────────────────────────────┐
-│              AWS API Gateway (Edge Layer)                    │
-│         Rate limiting │ Auth │ Request routing              │
-└──────┬───────────────────────────────────────┬──────────────┘
-       │                                       │
-┌──────▼──────────┐                  ┌─────────▼──────────────┐
-│  AWS Lambda     │                  │  AWS Lambda             │
-│  Core Services  │                  │  Credit Engine          │
-│  - Survival     │                  │  - CTOS API call        │
-│    Score calc   │                  │  - Feature engineering  │
-│  - Emergency    │                  │  - SageMaker invoke     │
-│    Mode logic   │                  │  - Loan decision        │
-│  - Nudge gen    │                  │  - MCC disbursal        │
-└──────┬──────────┘                  └─────────┬──────────────┘
-       │                                       │
-┌──────▼──────────┐  ┌──────────────┐ ┌───────▼──────────────┐
-│  AWS DynamoDB   │  │ AWS Bedrock  │ │  AWS SageMaker        │
-│  - user_profile │  │ (Claude      │ │  XGBoost Credit       │
-│  - transactions │  │  Haiku)      │ │  Scoring Model        │
-│  - loans        │  │  Nudge gen   │ │                       │
-│  - mcc_allowlist│  └──────────────┘ └───────────────────────┘
-└──────┬──────────┘
-       │
-┌──────▼──────────────────────────────────────────────────────┐
-│                  Alibaba Cloud Layer                         │
-│  PAI-EAS (Spending Classifier) │ OpenSearch (Benefits)      │
-│  SLS Log Service (Audit Trail) │ OSS (Model Artefacts)      │
+┌──────────────────────────────────────────────────────────────┐
+│               Flutter Client (iOS · Android · TNG MiniApp)   │
+│                    Dart · HTTPS/REST                         │
+└─────────────────────────┬────────────────────────────────────┘
+                          │
+┌─────────────────────────▼────────────────────────────────────┐
+│          AWS — ap-southeast-1 (Singapore)                    │
+│          Compute · data persistence · auth · LLM API         │
+│                                                              │
+│  ┌───────────────────────────────────────────────────────┐   │
+│  │           API Gateway                                 │   │
+│  │    Rate limiting · JWT auth · request routing         │   │
+│  └──────────┬────────────────────────┬──────────────────┘   │
+│             │                        │                       │
+│  ┌──────────▼──────────┐  ┌──────────▼──────────────────┐   │
+│  │  Lambda — core      │  │  Lambda — credit engine      │   │
+│  │  Survival score     │  │  CTOS call · feature eng.    │   │
+│  │  Emergency mode     │  │  Loan decision · MCC disburse│   │
+│  │  Nudge orchestration│  └──────────────────────────────┘   │
+│  └──────────┬──────────┘                                     │
+│             │                                                 │
+│  ┌──────────▼──────────┐  ┌──────────────────────────────┐   │
+│  │  DynamoDB           │  │  Bedrock — Claude Haiku       │   │
+│  │  users · txns       │  │  LLM nudge generation only    │   │
+│  │  loans · MCC list   │  │  (managed API, not ML hosting)│   │
+│  └─────────────────────┘  └──────────────────────────────┘   │
+│                                                              │
+│  → Inference requests cross to Alibaba Cloud PAI-EAS        │
+└──────────────────────────────────────────────────────────────┘
+                          │ PAI-EAS REST API
+                          │ (inference requests only — no PII)
+┌─────────────────────────▼────────────────────────────────────┐
+│          Alibaba Cloud — ap-southeast-1 (Singapore)          │
+│          All AI/ML serving · compliance audit trail          │
+│                                                              │
+│  ┌───────────────────────┐  ┌───────────────────────────┐   │
+│  │  PAI-EAS              │  │  PAI-EAS                  │   │
+│  │  Spending classifier  │  │  Credit scorer (XGBoost)  │   │
+│  │  MY merchant tagging  │  │  CTOS + TNG feature fusion│   │
+│  └───────────┬───────────┘  └──────────────┬────────────┘   │
+│              │                              │                 │
+│  ┌───────────▼──────────────────────────────▼────────────┐   │
+│  │  SLS — Audit Trail                                    │   │
+│  │  Co-located with AI inference (most intensive layer)  │   │
+│  │  Credit decisions · inference logs · PDPA compliance  │   │
+│  └───────────────────────────────────────────────────────┘   │
+│                                                              │
+│  ┌──────────────────────┐  ┌────────────────────────────┐   │
+│  │  OpenSearch          │  │  OSS                       │   │
+│  │  B40 benefits lookup │  │  Model artefacts · training│   │
+│  └──────────────────────┘  └────────────────────────────┘   │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-### Data Flow Summary
+### 4.2 Why This Split
 
-1. **Transaction Ingest**: TNG transaction history pulled on onboarding + incremental sync daily
-2. **Classification**: Transactions sent to Alibaba Cloud PAI-EAS → tagged as Essential / Discretionary / Savings
-3. **Score Computation**: AWS Lambda aggregates classified spend → computes daily burn rate → derives Survival Score
-4. **Nudge Generation**: AWS Bedrock generates personalised nudge copy based on user's top discretionary spend category
-5. **Loan Application**: Lambda calls CTOS API + aggregates TNG features → invokes SageMaker model → returns decision
-6. **Disbursal**: Approved loan creates restricted sub-balance on TNG Visa Card with MCC allowlist enforced at card processor
-7. **Audit**: All credit decisions logged to Alibaba Cloud SLS with anonymised feature vectors (PDPA-compliant)
+| Decision | Rationale |
+|---|---|
+| All ML serving on Alibaba Cloud PAI-EAS | Consolidates inference in one place. Malaysian merchant data fine-tuning is native to Alibaba Cloud's SEA infrastructure. Avoids scattered AI across two clouds. |
+| Audit trail on Alibaba Cloud SLS (not AWS) | SLS is co-located with PAI-EAS — the most compute-intensive layer. Credit scoring inference + audit log belong together. Cross-cloud audit logging adds latency and cost for no gain. |
+| AWS Bedrock kept on AWS | Bedrock is a managed LLM API call, not model hosting. It sits entirely in the AWS request chain and never touches the ML serving layer. This is the correct categorisation. |
+| AWS SageMaker removed | Replaced by PAI-EAS. Running two separate ML hosting platforms (SageMaker + PAI) for the same problem was the original anti-pattern. One platform, one place. |
+| Flutter replaces React Native / TNG MiniApp SDK | Flutter supports iOS, Android, and web from a single Dart codebase. TNG MiniApp can be packaged as a Flutter WebView embed. Cross-platform without code duplication. |
+| No PII crosses cloud boundary | Lambda sends only feature vectors (numbers) to PAI-EAS, never raw transaction strings, NRIC, or names. PDPA data residency maintained. |
+
+### 4.3 Data Flow — Path A: Survival Score
+
+```
+Flutter → API Gateway → Lambda Core
+       → [fetch 90d transactions from DynamoDB]
+       → [send merchant name + amount to PAI-EAS spending classifier]
+       ← [receive Essential / Discretionary tags]
+       → [compute: daily_burn = avg(essential_spend) / 30]
+       → [compute: survival_days = wallet_balance / daily_burn]
+       → [Bedrock: generate personalised nudge from top discretionary category]
+       → API response → Flutter renders Survival Score UI
+```
+
+### 4.4 Data Flow — Path B: Emergency Credit Lifeline
+
+```
+Flutter (user consents) → API Gateway → Lambda Credit
+       → [CTOS API: fetch thin-file signal]
+       → [DynamoDB: aggregate 90d TNG transaction features]
+       → [PAI-EAS credit scorer: XGBoost inference on feature vector]
+       ← [decision: APPROVE RM150 / DECLINE, top 3 SHAP factors]
+       → [SLS: log decision + anonymised feature vector — PDPA compliant]
+       → [DynamoDB: write loan record, MCC-locked sub-balance]
+       → API response → Flutter shows approval + restricted card balance
+```
 
 ---
 
@@ -227,9 +277,9 @@ Generate one nudge message.
 
 **Output**: Plain string nudge message, max 25 words.
 
-### 6.3 Credit Scoring Model (AWS SageMaker — XGBoost)
+### 6.3 Credit Scoring Model (Alibaba Cloud PAI-EAS — XGBoost)
 
-See Section 7 for full specification.
+See Section 7 for full specification. The model is trained offline and deployed to PAI-EAS for real-time inference. This consolidates both AI models on one platform — PAI-EAS serves both the spending classifier and the credit scorer. Lambda (Python) calls PAI-EAS for both; there is no second ML hosting platform.
 
 ---
 
@@ -276,16 +326,13 @@ features = {
 }
 ```
 
-### 7.4 Model Output
+### 7.4 Model Hosting
 
-```python
-output = {
-  "decision":     "APPROVE" | "DECLINE",
-  "loan_amount":  100 | 150 | 200,   # 0 if DECLINE
-  "risk_tier":    "LOW" | "MEDIUM" | "HIGH",
-  "top_factors":  [str, str, str]    # Top 3 explainable factors shown to user
-}
-```
+The XGBoost model is trained offline using scikit-learn / XGBoost and deployed to **Alibaba Cloud PAI-EAS**. This is the same serving endpoint used by the spending classifier — both models run on PAI-EAS, keeping all ML inference on one platform.
+
+**Training** (pre-hackathon prep): Synthetic dataset of 5,000 labelled B40 user profiles. Features derived from simulated TNG transaction patterns + CTOS score bands.
+
+**Inference call**: Lambda (Python) → PAI-EAS REST endpoint → JSON response in ~200ms.
 
 ### 7.5 Explainability (BNM Requirement)
 
@@ -335,72 +382,85 @@ For the hackathon MVP, MCC enforcement is **simulated at the API layer** — the
 
 | Layer | Technology | Justification |
 |---|---|---|
-| **Frontend** | React Native / TNG MiniApp SDK | Native TNG integration; no separate app download needed |
-| **API Gateway** | AWS API Gateway | Serverless, scales to TNG's 24M user base |
+| **Frontend** | Flutter (Dart) | Single codebase for iOS, Android, and TNG MiniApp WebView. Faster UI iteration than React Native for a 16-hour build. |
+| **API Gateway** | AWS API Gateway | Serverless, scales to TNG's 24M user base. JWT auth + rate limiting at edge. |
 | **Core Lambda** | AWS Lambda (Node.js 20) | Survival Score, Emergency Mode, nudge orchestration |
-| **Credit Lambda** | AWS Lambda (Python 3.11) | Credit scoring, CTOS API, SageMaker invoke |
-| **LLM Nudges** | AWS Bedrock — Claude Haiku | Fast, cheap, Malay-language capable |
-| **Credit Model** | AWS SageMaker — XGBoost | Explainable, auditable, BNM-defensible |
+| **Credit Lambda** | AWS Lambda (Python 3.11) | Credit feature engineering, CTOS API call, PAI-EAS invoke, MCC disbursal |
+| **LLM Nudges** | AWS Bedrock — Claude Haiku | Managed LLM API call — stays on AWS. Not model hosting. Malay-language capable. |
 | **Primary DB** | AWS DynamoDB | Low-latency key-value, serverless, scales instantly |
-| **Spending Classifier** | Alibaba Cloud PAI-EAS | SEA/MY merchant name fine-tuning; real-time inference |
-| **Benefits Search** | Alibaba Cloud OpenSearch | Full-text + structured search on government benefit data |
-| **Audit Log** | Alibaba Cloud SLS | Immutable, PDPA-compliant credit decision logging |
-| **Model Artefacts** | Alibaba Cloud OSS | Store trained PAI model files |
+| **Spending Classifier** | Alibaba Cloud PAI-EAS | All ML serving consolidated here. MY merchant name fine-tuning (kedai runcit, pasar malam, mamak). |
+| **Credit Scorer** | Alibaba Cloud PAI-EAS | XGBoost model hosted on PAI-EAS. Same platform as classifier — one ML serving layer, not two. |
+| **Audit Trail** | Alibaba Cloud SLS | Co-located with PAI-EAS (most compute-intensive layer). Credit decisions + inference logs. PDPA-compliant. |
+| **Benefits Search** | Alibaba Cloud OpenSearch | Full-text search on B40 government benefit eligibility rules |
+| **Model Artefacts** | Alibaba Cloud OSS | PAI model files + training data. OSS → PAI pipeline is native Alibaba Cloud workflow. |
 | **External API** | CTOS B2B Data API | Thin-file credit signals for B40 users |
+
+> **Removed from v1.0**: AWS SageMaker. Running SageMaker (AWS) alongside PAI-EAS (Alibaba) for the same ML serving function violated the single-domain principle. All model serving now lives on Alibaba Cloud.
 
 ---
 
 ## 10. Cloud Architecture — AWS
 
-### Services & Roles
+### Domain: Compute, Data, Auth, LLM API
 
-| Service | Role | Why Not Decorative |
+AWS is responsible for everything user-facing and all stateful data. It does not host any ML models.
+
+| Service | Role | Why Non-Negotiable |
 |---|---|---|
-| **API Gateway** | Single entry point for all client requests | Rate limiting, auth, request routing — load-bearing |
-| **Lambda (Core)** | Survival Score computation, Emergency Mode logic | Core business logic — cannot be removed |
-| **Lambda (Credit)** | Credit feature engineering, CTOS orchestration, SageMaker invoke | Core credit decisioning — cannot be removed |
-| **Bedrock (Claude Haiku)** | Daily nudge generation | Real LLM inference — not a static template |
-| **SageMaker** | XGBoost credit scoring model serving | Real ML inference — drives loan decision |
-| **DynamoDB** | All persistent state: users, transactions, loans, MCC lists | Primary database — not a cache |
+| **API Gateway** | Single entry point — rate limiting, JWT auth, routing | Load-bearing edge layer |
+| **Lambda (Core)** | Survival Score, Emergency Mode, nudge orchestration, PAI-EAS calls | Core business logic |
+| **Lambda (Credit)** | CTOS API, feature engineering, PAI-EAS credit invoke, MCC disbursal | Core credit decisioning |
+| **Bedrock (Claude Haiku)** | Daily nudge generation | Managed LLM API — lives naturally on AWS. Not ML model hosting. |
+| **DynamoDB** | All persistent state: users, transactions, loans, MCC allowlist | Primary database |
 
-### IAM Roles Required (Hackathon Setup)
+### What AWS Does Not Do
+- **No ML model hosting** — that is Alibaba Cloud's domain
+- **No audit trail** — SLS is co-located with PAI-EAS on Alibaba Cloud
+
+### IAM Roles
 
 ```
 LambdaCoreRole:    AmazonDynamoDBFullAccess, AmazonBedrockFullAccess
-LambdaCreditRole:  AmazonDynamoDBFullAccess, AmazonSageMakerFullAccess
-SageMakerRole:     AmazonS3ReadOnlyAccess (for model artefacts)
+LambdaCreditRole:  AmazonDynamoDBFullAccess
 ```
 
 ---
 
 ## 11. Cloud Architecture — Alibaba Cloud
 
-### Services & Roles
+### Domain: All AI/ML Serving + Compliance Audit Trail
 
-| Service | Role | Why Not Decorative |
+Alibaba Cloud owns the entire ML serving layer. Audit trail lives here because SLS is co-located with PAI-EAS — the most compute-intensive service. Logging at the point of compute is the correct pattern.
+
+| Service | Role | Why This Cloud |
 |---|---|---|
-| **PAI-EAS** | Serve the spending classifier model (needs/wants tagger) | Real ML inference serving — core to Survival Score pipeline |
-| **OpenSearch** | B40 government benefit eligibility matching | Full-text search on benefit eligibility rules — not achievable with DynamoDB |
-| **SLS (Log Service)** | PDPA-compliant immutable audit trail for all credit decisions | Required for BNM compliance — cannot be done in AWS without extra cost |
-| **OSS** | Store PAI model artefacts and training data | Object storage for ML pipeline — separation of compute and storage |
+| **PAI-EAS (Spending Classifier)** | Serve Malaysian merchant spending tagger in real time | SEA-native infrastructure; fine-tuned on MY merchant names. AWS has no equivalent MY-tuned offering. |
+| **PAI-EAS (Credit Scorer)** | Serve XGBoost credit model — CTOS + TNG feature fusion | Consolidated on same platform as classifier. One ML serving layer, not two. |
+| **SLS (Log Service)** | Immutable audit trail for all AI inference and credit decisions | Co-located with PAI-EAS. Zero cross-cloud hop for logs. PDPA-compliant anonymised records. |
+| **OpenSearch** | B40 government benefit eligibility search | Full-text matching on benefit rules — not a DynamoDB use case. |
+| **OSS** | Model artefacts and training datasets | Native PAI-EAS model registry. OSS → PAI pipeline requires no external tooling. |
 
-### PAI-EAS Endpoint Contract
+### PAI-EAS Endpoint Contracts
 
+**Spending Classifier**
 ```
 POST https://<endpoint>.eas.aliyuncs.com/api/predict/spending_classifier
 Headers: { "Authorization": "Bearer <token>" }
-Body: {
-  "merchant_name": "Giant Hypermarket Shah Alam",
-  "amount": 45.80,
-  "time_hour": 18,
-  "mcc": "5411"
-}
-Response: {
-  "category": "Essential",
-  "confidence": 0.97,
-  "subcategory": "Grocery"
-}
+Body:   { "merchant_name": "Giant Hypermarket Shah Alam", "amount": 45.80, "mcc": "5411" }
+Return: { "category": "Essential", "confidence": 0.97, "subcategory": "Grocery" }
 ```
+
+**Credit Scorer**
+```
+POST https://<endpoint>.eas.aliyuncs.com/api/predict/credit_scorer
+Headers: { "Authorization": "Bearer <token>" }
+Body:   { "ctos_score_band": 3, "topup_frequency_90d": 14, "utility_payment_rate": 0.92,
+          "spend_volatility": 0.21, "essential_spend_ratio": 0.64, "survival_score_delta": 2 }
+Return: { "decision": "APPROVE", "loan_amount": 150, "risk_tier": "MEDIUM",
+          "shap_factors": ["Regular top-ups (+)", "Utility bills paid (+)", "High Grab spend (-)"] }
+```
+
+> Note: No PII is sent to Alibaba Cloud. All inputs are numerical feature vectors derived by Lambda. Raw merchant names are sent to the classifier only — no user identifiers travel with them.
 
 ---
 
@@ -584,14 +644,14 @@ Response: {
 
 | Window | Milestone | Owner |
 |---|---|---|
-| **17:00–19:00** | Repo init + CCPM setup. DynamoDB tables created. Siti's mock transaction data seeded. AWS Lambda skeleton deployed. UI scaffold: 4 screens stubbed. | Backend + Infra + Frontend |
-| **19:00–21:00** | Spending classifier Lambda live (rule-based fallback). Survival Score formula working. Emergency Mode API connected to frontend. | Backend + AI |
-| **21:00–23:00** | ECL application flow: feature engineering Lambda + mock CTOS response + hardcoded XGBoost stub → decision returned to frontend. MCC-locked card screen showing restricted balance. | Backend + Frontend |
-| **23:00–01:00** | AWS Bedrock nudge integration live. MCC transaction check API (allowlist enforcement). Frontend ↔ Backend fully integrated for core flow. | AI + Backend + Frontend |
-| **01:00–03:00** | Alibaba Cloud PAI-EAS endpoint called from Lambda (spending classifier upgrade). OpenSearch benefits lookup (if time). SLS logging wired up. | Infra + AI |
-| **03:00–05:00** | Repayment schedule UI. UI polish. Edge cases (no CTOS consent path, decline flow). Demo data rehearsal. | Frontend + Backend |
-| **05:00–07:00** | Demo video recorded (Siti's full journey: onboard → crisis → ECL → MCC block at Shopee). Pitch deck built (7 slides). | All |
-| **07:00–08:30** | GitHub README. Submission form filled. Final demo dry run. Q&A role assignment. | All |
+| **17:00–19:00** | Repo init. DynamoDB tables created. Siti's mock data seeded. AWS Lambda skeleton deployed. Flutter project initialised — 4 screens scaffolded. | Backend + Infra + Frontend |
+| **19:00–21:00** | Spending classifier Lambda live (calls PAI-EAS or rule-based fallback). Survival Score formula working end-to-end. Emergency Mode API live. | Backend + AI |
+| **21:00–23:00** | ECL application flow: feature engineering Lambda → PAI-EAS credit scorer (or stub) → decision returned to Flutter. MCC-locked card screen rendering. | Backend + Frontend |
+| **23:00–01:00** | AWS Bedrock nudge integration live. MCC transaction check API. Flutter ↔ Backend fully integrated for core flow. | AI + Backend + Frontend |
+| **01:00–03:00** | PAI-EAS both endpoints confirmed live (spending classifier + credit scorer). OpenSearch benefits lookup (if time). SLS logging wired up. | Infra + AI |
+| **03:00–05:00** | Repayment schedule UI. Flutter UI polish. Edge cases (no CTOS consent, decline flow). Demo data rehearsal. | Frontend + Backend |
+| **05:00–07:00** | Demo video recorded (Siti's full journey). Pitch deck built (7 slides). | All |
+| **07:00–08:30** | GitHub README. Submission form filled. Final demo dry run. Q&A roles assigned. | All |
 
 ### Critical Path
 
@@ -679,7 +739,7 @@ Show Year 2 vision slide: credit history growth curve.
 
 | Criterion | How We Win It | Judge |
 |---|---|---|
-| **AI & Intelligent Systems** | Two distinct AI mechanisms: (1) Alibaba PAI-EAS spending classifier fine-tuned on Malaysian merchant data, (2) AWS SageMaker XGBoost credit scorer fusing CTOS + TNG behavioural features. Plus Bedrock LLM for nudge generation. All three are purposeful — none decorative. | Leslie |
+| **AI & Intelligent Systems** | Two distinct PAI-EAS models on Alibaba Cloud (spending classifier + XGBoost credit scorer) + AWS Bedrock LLM for nudges. All three are purposeful — none decorative. AI is not scattered; it is consolidated. | Leslie |
 | **Technical Implementation** | Serverless AWS stack (Lambda + API Gateway + DynamoDB), MCC-locked card sub-balance (production-architecture pattern), CTOS B2B API integration, SHAP explainability on credit decisions. Ambitious and functional for 24 hours. | Leslie |
 | **Multi-Cloud Service Usage** | AWS: API Gateway + Lambda + Bedrock + SageMaker + DynamoDB — core compute and ML. Alibaba Cloud: PAI-EAS (AI inference) + OpenSearch (benefit search) + SLS (compliance audit). Both clouds serve non-substitutable roles. | Enshu |
 | **Impact & Feasibility** | Named persona (Siti). Addresses 5.8M B40 households. Extends survival by 6–8 days per emergency. Responsible MCC-locked lending. Repayment builds credit history — long-term poverty gap reduction. TNG's 24M users are the distribution moat. | Wing + Leslie |
