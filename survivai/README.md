@@ -208,3 +208,19 @@ All data is mocked via `MockDataService`. The demo user is **Siti Nurhaliza**:
 ---
 
 ## Team FreshMinds — TNG FinHack 2026
+
+## Backend API Link Configuration
+
+SurvivAI now supports loading dashboard data from backend API instead of only mock data.
+
+Run with explicit API base URL:
+
+```bash
+flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:8000/api
+```
+
+Current endpoint used by provider:
+- `GET /api/survival-score?user_id=<id>`
+
+Fallback behavior:
+- If API call fails, `AppProvider` falls back to `MockDataService` so demo flow stays available.
