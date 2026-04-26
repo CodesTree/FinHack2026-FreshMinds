@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "aws-mcp": {
-      "command": "uvx",
+      "command": "C:\\Users\\Chang Ho\\.local\\bin\\uvx.exe",
       "timeout": 1200000,
       "transport": "stdio",
       "args": [

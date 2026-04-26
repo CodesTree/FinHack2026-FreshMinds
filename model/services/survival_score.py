@@ -29,7 +29,7 @@ def calculate_survival_score(
 
     return {
         "wallet_balance": round(wallet_balance, 2),
-        "realistic_survival_days": round(realistic_survival_days, 1),
+        "survival_days": round(realistic_survival_days, 1),
         "emergency_survival_days": round(emergency_survival_days, 1),
         "potential_days_saved": round(potential_days_saved, 1),
         "daily_total_burn_rate": round(predicted_daily_total_spend, 2),
